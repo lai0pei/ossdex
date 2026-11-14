@@ -1,0 +1,24 @@
+# /etc/systemd/system/ossdex-server.service
+[Unit]
+Description=ossdex web UI, API and MCP server
+After=network.target
+
+[Service]
+User=ossdex
+Group=ossdex
+WorkingDirectory=/srv/ossdex
+EnvironmentFile=/etc/ossdex/server.env
+# One request at a time per worker, so OSSDEX_WORKERS (see server.env) is the number of requests served in parallel.
+ExecStart=/srv/ossdex/.venv/bin/ossdex-server serve --host 127.0.0.1 --port 8200
+Restart=on-failure
+RestartSec=3
+
+# The server only reads data/ossdex.db (plus its -wal/-shm files, which SQLite creates next to it).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/ossdex/data
+
+[Install]
+WantedBy=multi-user.target

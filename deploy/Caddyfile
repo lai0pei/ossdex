@@ -1,0 +1,17 @@
+# /etc/caddy/Caddyfile
+# TLS uses a Cloudflare Origin Certificate (Cloudflare dashboard -> SSL/TLS -> Origin Server).
+# Let's Encrypt's automatic issuing can fail when the firewall only lets Cloudflare in.
+ossdex.example.com {
+	tls /etc/caddy/origin.pem /etc/caddy/origin.key
+
+	# CF-Connecting-IP is passed through untouched; it can be believed because the firewall only
+	# lets Cloudflare reach port 443 (see cloudflare-firewall.sh).
+	# Without Cloudflare in front, the rate limiter falls back to the last X-Forwarded-For entry,
+	# which Caddy appends itself.
+	reverse_proxy 127.0.0.1:8200
+
+	encode zstd gzip
+	log {
+		output file /var/log/caddy/ossdex.log
+	}
+}

@@ -1,0 +1,20 @@
+[project]
+name = "ossdex-collector"
+version = "0.1.0"
+description = "Fetches notable open-source GitHub repos into a local SQLite database"
+requires-python = ">=3.12"
+dependencies = [
+    "ossdex-core",
+    "httpx>=0.28.1",
+    "typer>=0.15",
+]
+
+[tool.uv.sources]
+ossdex-core = { workspace = true }
+
+[build-system]
+requires = ["uv_build>=0.11.8,<0.12.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+ossdex-collector = "ossdex_collector.cli:app"

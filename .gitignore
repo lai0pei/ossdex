@@ -1,0 +1,41 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.env
+data/
+node_modules/
+web/dist/
+*.egg-info/
+.DS_Store
+*.swp
+
+# Large / generated data
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+*.csv.gz
+*.zip
+*.tar.gz
+
+# Python tooling caches
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Web build output
+web/.next/
+web/.vite/
+web/coverage/
+
+# Local dev / editor / Claude Code
+.env.*
+!.env.example
+.claude/worktrees/
+.claude/settings.local.json
+.idea/
+.vscode/
+*.log

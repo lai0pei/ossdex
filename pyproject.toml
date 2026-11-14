@@ -1,0 +1,30 @@
+[project]
+name = "ossdex"
+version = "0.1.0"
+description = "Workspace root: the ossdex collector, server and shared core"
+requires-python = ">=3.12"
+dependencies = ["ossdex-core", "ossdex-collector", "ossdex-server"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+ossdex-core = { workspace = true }
+ossdex-collector = { workspace = true }
+ossdex-server = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "respx>=0.22",
+    "ruff>=0.9",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["packages", "tests"]

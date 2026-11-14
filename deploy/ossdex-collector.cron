@@ -1,0 +1,3 @@
+# /etc/cron.d/ossdex-collector -- fetch from GitHub every day at 03:15 as the ossdex user.
+# GITHUB_TOKEN comes from /srv/ossdex/.env (chmod 600, owner ossdex).
+15 3 * * * ossdex /usr/local/bin/uv --directory /srv/ossdex run --package ossdex-collector ossdex-collector update >> /srv/ossdex/data/update.log 2>&1
