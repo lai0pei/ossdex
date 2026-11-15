@@ -44,7 +44,6 @@ def filters_dep(
     in_lists: Annotated[list[str], Query()] = [],  # noqa: B006
     mentions_paper: bool = False,
     money: Annotated[list[str], Query()] = [],  # noqa: B006
-    has_bounties: bool = False,
     min_stars: int | None = None,
     max_stars: int | None = None,
     min_forks: int | None = None,
@@ -165,29 +164,6 @@ def create_app(settings: Settings | None = None, *, toolbox: Toolbox | None = No
         if res is None:
             raise HTTPException(404, f"{owner}/{name} not found")
         return res
-
-    @get("/api/alternatives")
-    def alternatives(
-        product: str = Query(..., max_length=100, description="Paid product name or category"),
-        os: str = Query("linux", description="Target OS (macos, linux, windows)"),
-        habits: Annotated[list[str], Query(max_length=10)] = [],  # noqa: B006
-        installed: Annotated[list[str], Query(max_length=30)] = [],  # noqa: B006
-        license_kinds: Annotated[list[str], Query()] = [],  # noqa: B006
-        min_stars: int | None = Query(None, ge=0),
-        limit: int = Query(8, ge=1, le=25),
-    ) -> dict:
-        from .alternatives import FindAlternativesArgs, find_oss_alternatives
-        valid_os = os if os in ("macos", "linux", "windows") else "linux"
-        args = FindAlternativesArgs(
-            paid_product=product,
-            os=valid_os,  # type: ignore[arg-type]
-            habits=habits or None,
-            installed_software=installed or None,
-            license_kinds=license_kinds or None,  # type: ignore[arg-type]
-            min_stars=min_stars,
-            limit=limit,
-        )
-        return find_oss_alternatives(db, args)
 
     # Registered before the static mount at "/", which would otherwise swallow /mcp. Adding the
     # routes directly (not mounting the sub-app) keeps the URL /mcp, not /mcp/mcp, with no redirect.

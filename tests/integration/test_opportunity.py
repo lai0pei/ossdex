@@ -102,9 +102,6 @@ def money_world(db_path):
         INSERT INTO repo_money(ghr_id, funding, signals, readme_sha) VALUES
           (2, '[]', '["hosted_cloud","enterprise"]', 'x'),
           (1, '[{"platform":"GITHUB","url":"https://github.com/sponsors/acme"}]', '[]', 'x');
-        INSERT INTO repo_demand VALUES (2, 7, 2, '2026-10-26T00:00:00Z');
-        INSERT INTO repo_issues VALUES (2, 11, 'Add SSO', 'https://x/11', 40, 5, '["feature"]', '2026-01-01'),
-                                       (2, 12, 'Dark mode', 'https://x/12', 9, 1, '[]', '2026-02-01');
     """)
     c.commit()
     c.close()
@@ -121,42 +118,33 @@ def test_money_filters_facets_and_detail(money_world):
     assert names(rq.RepoFilters(money=["sponsors"])) == ["acme/golang-api"]
     assert sorted(names(rq.RepoFilters(money=["sponsors", "hosted_cloud"]))) == [
         "acme/golang-api", "acme/langchain-agent"]
-    assert names(rq.RepoFilters(has_bounties=True)) == ["acme/langchain-agent"]
     facets = {m["value"]: m["count"] for m in rq.facets(db, rq.RepoFilters())["money"]}
     assert facets == {"hosted_cloud": 1, "enterprise": 1, "sponsors": 1}
     d = rq.repo_detail(db, "acme/langchain-agent")
     assert d["money"]["signals"] == ["hosted_cloud", "enterprise"]
-    assert d["demand"]["bounties"] == 2 and [i["title"] for i in d["demand"]["top_issues"]] == [
-        "Add SSO", "Dark mode"]
     assert rq.repo_detail(db, "acme/rag-kit")["money"] is None
 
 
-def test_tools_niches_demand_and_report(money_world, settings):
+def test_tools_niches_and_report(money_world, settings):
     tb = Toolbox(money_world, settings)
     res = tb.call("find_niches", {"min_repos": 1, "limit": 5})
     assert res["niches"] and res["niches"][0]["gain"] >= res["niches"][-1]["gain"]
-    got = tb.call("get_demand", {"full_name": "acme/langchain-agent"})
-    assert got["bounties"] == 2 and got["top_issues"][0]["reactions"] == 40
-    assert "no demand data" in tb.call("get_demand", {"full_name": "acme/rag-kit"})["note"]
-    assert "error" in tb.call("get_demand", {"full_name": "nope/nope"})
     rep = tb.call("opportunity_report", {"language": "python", "min_repos": 1, "limit": 3})
     assert rep["niches"] and "how_to_read" in rep
     agent = next(r for n in rep["niches"] for r in n["rising"] if r["repo"] == "acme/langchain-agent")
-    assert agent["business_hints"] == ["hosted_cloud", "enterprise"] and agent["demand"]["bounties"] == 2
+    assert agent["business_hints"] == ["hosted_cloud", "enterprise"]
     assert all(r["repo"] != "acme/golang-api" for n in rep["niches"] for r in n["rising"])  # not python
     rep = tb.call("opportunity_report", {"topic": "langchain", "min_repos": 1})
-    assert [n["topic"] for n in rep["niches"]] and all("demand" in r for n in rep["niches"]
-                                                      for r in n["rising"][:1])
+    assert [n["topic"] for n in rep["niches"]]
     assert tb.call("get_repo", {"full_name": "acme/langchain-agent"})["business_hints"]
 
 
-def test_old_database_without_money_and_demand_tables(db_path):
+def test_old_database_without_money_tables(db_path):
     c = sqlite3.connect(db_path)
-    c.executescript("DROP TABLE repo_money; DROP TABLE repo_demand; DROP TABLE repo_issues;")
+    c.executescript("DROP TABLE repo_money;")
     c.close()
     db = ReadDb(db_path)
-    assert not db.has_money and not db.has_demand and db.has_enrich
+    assert not db.has_money and db.has_enrich
     assert rq.facets(db, rq.RepoFilters())["money"] == []
     assert rq.list_repos(db, rq.RepoFilters(money=["enterprise"]))["items"] == []
-    assert rq.repo_detail(db, "acme/rag-kit")["demand"] is None
     assert rq.niches(db, rq.RepoFilters(), min_repos=1)["niches"]

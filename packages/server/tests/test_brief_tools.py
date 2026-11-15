@@ -9,7 +9,6 @@ Prevents failure modes F1 through F10:
 - F6: Name/trademark collision (collision with existing repo or trademark)
 - F7: License blind spot (copyleft system binaries, model weights, vendor ToS)
 - F8: Platform blind spot (target hosting cannot run workloads)
-- F9: Empty demand data ("0 bounties" reported when demand was never fetched)
 - F10: Noisy similarity (surfacing semantic vs keyword match provenance)
 """
 
@@ -110,18 +109,17 @@ def custom_db_path(tmp_path: Path) -> Path:
     for d in range(4, 26):
         conn.execute(f"INSERT INTO repo_stats (ghr_id, day, stars, forks) VALUES (105, '2026-10-{d:02d}', 3990, 200)")
 
-    # Add demand records for 103
+    # 106: an awesome list that only its name gives away (no awesome topic, no "curated list" text)
     conn.execute(
-        "INSERT INTO repo_demand (ghr_id, help_wanted, bounties, fetched_at) "
-        "VALUES (103, 4, 2, '2026-10-26T00:00:00Z')"
-    )
-    conn.execute(
-        "INSERT INTO repo_issues (ghr_id, number, title, url, reactions, comments, labels, created_at) "
-        "VALUES (103, 42, 'Add SAML SSO and Audit Log for enterprise compliance', 'https://github.com/enterprise/flow-app/issues/42', 85, 12, '[\"feature\", \"bounty\"]', '2026-09-01T00:00:00Z')"
-    )
-    conn.execute(
-        "INSERT INTO repo_issues (ghr_id, number, title, url, reactions, comments, labels, created_at) "
-        "VALUES (103, 43, 'Docker deployment fails on ARM64 / Kubernetes', 'https://github.com/enterprise/flow-app/issues/43', 45, 8, '[\"bug\", \"help wanted\"]', '2026-09-02T00:00:00Z')"
+        "INSERT INTO repos (ghr_id, node_id, full_name, url, language, description, topics, "
+        "license, stars, forks, open_issues, enrich_status, pushed_at, created_at, readme, "
+        "first_seen, last_seen, enriched_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            106, "node106", "curator/awesome-tools", "https://github.com/curator/awesome-tools",
+            "Markdown", "Handy tools", json.dumps(["tools"]),
+            "CC0-1.0", 900, 10, 1, "ok", "2026-10-20", "2024-01-01", "# Handy tools\n- one\n- two\n",
+            "2026-10-01T00:00:00Z", "2026-10-27T00:00:00Z", "2026-10-27T00:00:00Z"
+        )
     )
 
     conn.commit()
@@ -146,6 +144,9 @@ def test_classify_artifact_f1_prevention(custom_db):
     assert res_list["deployable"] is False
     assert "hosted_app" not in res_list["feasible_saas_shapes"]
     assert res_list["data_coverage"] in ("complete", "partial")
+
+    # the name is checked without the owner ("curator/"), so "awesome-" at its start counts
+    assert bt.classify_artifact(custom_db, "curator/awesome-tools")["kind"] == "awesome_list"
 
     # SDK / library
     res_sdk = bt.classify_artifact(custom_db, "dev/py-client")
@@ -241,28 +242,6 @@ def test_get_maintainer_health(custom_db):
 
 
 # -----------------------------------------------------------------------------
-# Tool 7: classify_issues [F9]
-# -----------------------------------------------------------------------------
-def test_classify_issues_f9_empty_demand_and_clustering(custom_db):
-    # Repo with fetched demand
-    res = bt.classify_issues(custom_db, "enterprise/flow-app", top_n=50)
-    assert res["data_coverage"] == "complete"
-    assert res["help_wanted_count"] == 4
-    assert res["bounty_count"] == 2
-    # Verify cluster detection (compliance for SAML SSO, hosting_deployment for Docker/K8s)
-    labels = [c["label"] for c in res["clusters"]]
-    assert "compliance" in labels
-    assert "hosting_deployment" in labels
-    assert "compliance" in res["monetizable_pain"]
-
-    # Repo with UNFETCHED demand -> must never report "0 bounties" as validated no demand!
-    res_unfetched = bt.classify_issues(custom_db, "curator/awesome-agents")
-    assert res_unfetched["data_coverage"] == "missing"
-    assert res_unfetched["bounty_count"] is None
-    assert res_unfetched["help_wanted_count"] is None
-
-
-# -----------------------------------------------------------------------------
 # Tool 8: get_commercial_landscape [F5]
 # -----------------------------------------------------------------------------
 def test_get_commercial_landscape(custom_db):
@@ -353,7 +332,6 @@ def test_evaluate_brief_end_to_end(custom_db):
     claims = {
         "velocity": "breakout_growth",
         "license": "permissive",
-        "demand": "validated_bounties",
     }
     res = bt.evaluate_brief(
         custom_db,
@@ -384,7 +362,6 @@ def test_toolbox_envelope_invariants(custom_db, settings):
         ("get_package_adoption", {"full_name": "enterprise/flow-app"}),
         ("analyze_forks", {"full_name": "enterprise/flow-app", "sample_size": 50}),
         ("get_maintainer_health", {"full_name": "enterprise/flow-app", "months": 6}),
-        ("classify_issues", {"full_name": "enterprise/flow-app", "top_n": 50}),
         ("get_commercial_landscape", {"full_name": "enterprise/flow-app"}),
         ("get_company_events", {"full_name": "enterprise/flow-app"}),
         ("check_name_collision", {"name": "flow-app"}),

@@ -1,5 +1,4 @@
 import type {
-  AlternativesResponse,
   Facets,
   Repo,
   RepoDetail,
@@ -21,5 +20,3 @@ export const fetchFacets = (params: URLSearchParams, signal?: AbortSignal) =>
 export const fetchRepo = (fullName: string) => getJson<RepoDetail>(`/api/repos/${fullName}`);
 export const fetchSimilar = (fullName: string) =>
   getJson<{ repos: Repo[]; note?: string }>(`/api/repos/${fullName}/similar`);
-export const fetchAlternatives = (params: URLSearchParams, signal?: AbortSignal) =>
-  getJson<AlternativesResponse>(`/api/alternatives?${params}`, signal);

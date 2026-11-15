@@ -26,8 +26,6 @@ export interface Repo {
   money_signals?: string[];
   lists_count?: number;
   papers_count?: number;
-  bounties?: number;
-  help_wanted?: number;
 }
 
 export interface RepoPage {
@@ -66,12 +64,6 @@ export interface RepoDetail extends Repo {
   lists?: { list: string; section: string | null; url: string | null }[];
   papers?: { arxiv_id: string; title: string | null; url: string }[];
   money?: { signals: string[]; funding: { platform: string | null; url: string | null }[] } | null;
-  demand?: {
-    help_wanted: number;
-    bounties: number;
-    fetched_at: string | null;
-    top_issues: { number: number; title: string; url: string; reactions: number; comments: number; labels: string[] }[];
-  } | null;
 }
 
 export interface Status {
@@ -109,44 +101,4 @@ export interface InferredHabit {
   habit: string;
   label: string;
   evidence: string;
-}
-
-
-export interface AlternativeCandidate {
-  full_name: string;
-  stars: number | null;
-  forks: number | null;
-  language: string | null;
-  license: string | null;
-  license_kind: string | null;
-  description: string | null;
-  homepage: string | null;
-  gain_1d?: number | null;
-  gain_7d: number | null;
-  form_factor: string;
-  os_compatible: boolean;
-  os_evidence: string[];
-  fit_score: number;
-  fit_badge: string;
-  habit_reasons: string[];
-  workflow_synergies: string[];
-  tailored_install_command: string | null;
-  tradeoffs: string;
-}
-
-export interface AlternativesResponse {
-  paid_product: string;
-  category: string;
-  target_os: string;
-  user_habits: string[];
-  installed_software: string[];
-  alternatives_count: number;
-  alternatives: AlternativeCandidate[];
-  articulation_guide: {
-    best_overall_pick: string | null;
-    best_cli_pick: string | null;
-    best_gui_pick: string | null;
-    summary: string;
-  };
-  as_of: string;
 }

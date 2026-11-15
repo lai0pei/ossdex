@@ -4,17 +4,15 @@ import { fetchFacets, fetchRepos, fetchStatus } from "./api";
 import Filters from "./Filters";
 import {
   IconBookOpen,
-  IconLayoutGrid,
   IconLogo,
   IconMoon,
   IconSearch,
-  IconSparkles,
   IconSun,
   IconX,
 } from "./icons";
 import RepoList from "./RepoList";
 import GuideModal from "./GuideModal";
-import { serialize, useListState, type ViewMode } from "./state";
+import { serialize, useListState } from "./state";
 
 const RepoDrawer = lazy(() => import("./RepoDrawer"));
 
@@ -121,14 +119,13 @@ export default function App() {
     placeholderData: keepPreviousData,
   });
   const openRepo = useCallback((repo: string) => update({ repo }, false), [update]);
-  const viewMode: ViewMode = state.view || "cards";
 
   const st = status.data;
   const hasInspector = Boolean(state.repo);
 
   return (
     <div className={`app ${hasInspector ? "has-split-inspector" : ""}`}>
-      {/* Sticky 2-Row Top Deck: Row 1 = Brand, Search, View Switcher, Status & Theme */}
+      {/* Sticky 2-Row Top Deck: Row 1 = Brand, Search, Status & Theme */}
       <header className="topbar">
         <div className="topbar-row-main">
           <div className="brand">
@@ -165,32 +162,6 @@ export default function App() {
             ) : (
               <kbd className="search-kbd" title="Press / or ⌘K to focus search">/</kbd>
             )}
-          </div>
-
-          {/* View Mode Switcher */}
-          <div className="view-mode-tabs" role="tablist" aria-label="View mode">
-            <button
-              type="button"
-              className={`view-tab ${viewMode === "cards" ? "active" : ""}`}
-              onClick={() => update({ view: "cards" }, false)}
-              title="Cards view"
-              role="tab"
-              aria-selected={viewMode === "cards"}
-            >
-              <IconLayoutGrid size={13} />
-              <span>Cards</span>
-            </button>
-            <button
-              type="button"
-              className={`view-tab ${viewMode === "alternatives" ? "active" : ""}`}
-              onClick={() => update({ view: "alternatives" }, false)}
-              title="Find personalized open-source alternatives for paid products"
-              role="tab"
-              aria-selected={viewMode === "alternatives"}
-            >
-              <IconSparkles size={13} />
-              <span>Alternatives</span>
-            </button>
           </div>
 
           <div className="topbar-actions">
@@ -302,7 +273,6 @@ export default function App() {
       <GuideModal
         isOpen={showGuide}
         onClose={() => setShowGuide(false)}
-        onNavigateView={(view) => update({ view }, false)}
         onApplyQuickFilter={(patch) => {
           const updates: any = {};
           if (patch.saasSafe !== undefined) updates.licensed_only = patch.saasSafe;

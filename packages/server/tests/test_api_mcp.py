@@ -124,7 +124,6 @@ def test_mcp_exposes_tools_prompts_and_a_readme_resource(tb):
         "oss_solution",
         "vertical_saas_idea",
         "compose_product_stack",
-        "monetize_demand_gaps",
         "fork_and_rebrand_audit",
         "competitive_moat_analysis",
         "breakout_opportunity_scan",
@@ -133,7 +132,6 @@ def test_mcp_exposes_tools_prompts_and_a_readme_resource(tb):
         "articulate_stack_ideas",
         "learn_repo_80_20",
         "learn_stack_80_20",
-        "find_oss_alternative",
     }
     text = saas.messages[0].content.text
     assert "a CRM" in text and "in Go" in text and "permissive" in text and "not legal advice" in text
@@ -165,8 +163,8 @@ def test_mcp_inputs_carry_enums_and_descriptions(tb):
     for name in ("search_repos", "list_repos", "find_similar", "count_repos"):
         assert {"max_forks", "pushed_before"} <= tools[name].keys()
     for name in ("search_repos", "list_repos"):
-        assert {"in_lists", "mentions_paper", "money", "has_bounties"} <= tools[name].keys()
-    assert {"find_niches", "get_demand", "opportunity_report"} <= tools.keys()
+        assert {"in_lists", "mentions_paper", "money"} <= tools[name].keys()
+    assert {"find_niches", "opportunity_report"} <= tools.keys()
     assert "gain_1d" in str(tools["list_repos"]["sort"]) and "gain_7d" in str(tools["list_repos"]["sort"])
 
 
@@ -192,7 +190,6 @@ def test_enrichment_filters_over_http(client, db_path):
     c = sqlite3.connect(db_path)
     c.executescript("""
         INSERT INTO repo_money(ghr_id, funding, signals, readme_sha) VALUES (2, '[]', '["enterprise"]', 'x');
-        INSERT INTO repo_demand VALUES (2, 1, 3, '2026-10-26T00:00:00Z');
     """)
     c.commit()
     c.close()
@@ -200,7 +197,6 @@ def test_enrichment_filters_over_http(client, db_path):
         return [i["full_name"] for i in client.get("/api/repos", params=p).json()["items"]]
 
     assert names({"money": ["enterprise"]}) == ["acme/langchain-agent"]
-    assert names({"has_bounties": "true"}) == ["acme/langchain-agent"]
     assert {"value": "enterprise", "count": 1} in client.get("/api/facets").json()["money"]
     d = client.get("/api/repos/acme/langchain-agent").json()
-    assert d["money"]["signals"] == ["enterprise"] and d["demand"]["bounties"] == 3
+    assert d["money"]["signals"] == ["enterprise"]

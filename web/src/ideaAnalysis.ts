@@ -21,12 +21,6 @@ export interface SingleRepoAnalysis {
   deploymentSignal: string;
   velocitySignal: string;
   businessPrecedents: string[];
-  demandHighlight: {
-    fetched: boolean;
-    bounties: number;
-    helpWanted: number;
-    topWish: string | null;
-  };
   playbooks: ProductPlaybook[];
   risks: string[];
 }
@@ -142,12 +136,6 @@ export function analyzeSingleRepo(r: RepoDetail): SingleRepoAnalysis {
     businessPrecedents.push("external web product");
   }
 
-  const demandFetched = r.demand !== undefined && r.demand !== null;
-  const bounties = r.demand?.bounties ?? 0;
-  const helpWanted = r.demand?.help_wanted ?? 0;
-  const topIssues = r.demand?.top_issues || [];
-  const topWish = topIssues.length > 0 ? topIssues[0].title : null;
-
   // Derive actionable product playbooks
   const playbooks: ProductPlaybook[] = [];
 
@@ -169,16 +157,6 @@ export function analyzeSingleRepo(r: RepoDetail): SingleRepoAnalysis {
     }
   }
 
-  if (topWish || bounties > 0 || helpWanted > 0) {
-    playbooks.push({
-      title: "Commercial Extensions & Paid Integrations",
-      type: "extension",
-      description: topWish
-        ? `Build the most requested community capability: "${topWish}".`
-        : `Solve active user bounties (${bounties}) and high-demand open issues.`,
-      rationale: "Addresses validated user pain points where users have already expressed willingness to pay or contribute.",
-    });
-  }
 
   if (forkRatioPct && forkRatioPct >= 12 && !isAwesomeOrList && !isCourseOrBook) {
     playbooks.push({
@@ -210,9 +188,6 @@ export function analyzeSingleRepo(r: RepoDetail): SingleRepoAnalysis {
   ) {
     risks.push("Runtime lock-in (F2): README references third-party cloud API keys. Evaluate upstream vendor cost & dependency risk.");
   }
-  if (!demandFetched) {
-    risks.push(`Demand data uncollected (F9): run 'ossdex demand ${r.full_name}' to collect real issues and bounties.`);
-  }
   if (!licensePosture.saasAllowed) {
     risks.push(`License gate: ${licensePosture.badge} limits commercial closed hosting.`);
   }
@@ -232,7 +207,6 @@ export function analyzeSingleRepo(r: RepoDetail): SingleRepoAnalysis {
     deploymentSignal,
     velocitySignal,
     businessPrecedents,
-    demandHighlight: { fetched: demandFetched, bounties, helpWanted, topWish },
     playbooks,
     risks,
   };
@@ -253,8 +227,6 @@ export function buildMcpSingleBrief(
     `- **Deployment Ratio**: ${analysis.deploymentSignal}`,
     `- **Velocity**: ${analysis.velocitySignal}`,
     `- **Commercial Signals**: ${analysis.businessPrecedents.length > 0 ? analysis.businessPrecedents.join(", ") : "None detected in README"}`,
-    `- **Community Demand**: ${analysis.demandHighlight.fetched ? `${analysis.demandHighlight.bounties} bounties, ${analysis.demandHighlight.helpWanted} help-wanted issues` : `Uncollected (run \`ossdex demand ${repo.full_name}\`)`}`,
-    analysis.demandHighlight.topWish ? `- **Top Requested Wish**: "${analysis.demandHighlight.topWish}"` : "",
     "",
     "## Candidate Product Angles",
     ...analysis.playbooks.map((p) => `- **${p.title}** (${p.type}): ${p.description}\n  *Rationale*: ${p.rationale}`),
@@ -263,9 +235,8 @@ export function buildMcpSingleBrief(
     "## MCP Exploration Instructions",
     "Use the ossdex MCP tools to validate and deepen this product concept:",
     `1. \`get_repo(full_name="${repo.full_name}")\` for star history and full README preview.`,
-    `2. \`get_demand(full_name="${repo.full_name}")\` to inspect the top upvoted community feature requests and bounties.`,
-    `3. \`find_similar(full_name="${repo.full_name}", license_kinds=["permissive"])\` to discover alternative components or competitors.`,
-    `4. \`saas_base(idea="${draft?.title || repo.full_name}")\` to evaluate commercial packaging tradeoffs.`,
+    `2. \`find_similar(full_name="${repo.full_name}", license_kinds=["permissive"])\` to discover alternative components or competitors.`,
+    `3. \`saas_base(idea="${draft?.title || repo.full_name}")\` to evaluate commercial packaging tradeoffs.`,
   ];
 
   return promptLines.filter(Boolean).join("\n");

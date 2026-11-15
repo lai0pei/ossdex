@@ -94,14 +94,8 @@ CREATE TABLE IF NOT EXISTS repo_money (
   signals TEXT,   -- JSON ["hosted_cloud", ...] business-model tags found in the README
   readme_sha TEXT -- the README the signals were read from
 );
-CREATE TABLE IF NOT EXISTS repo_issues (
-  ghr_id INTEGER NOT NULL, number INTEGER NOT NULL, title TEXT, url TEXT,
-  reactions INTEGER, comments INTEGER, labels TEXT, created_at TEXT,
-  PRIMARY KEY (ghr_id, number)
-) WITHOUT ROWID;
-CREATE TABLE IF NOT EXISTS repo_demand (
-  ghr_id INTEGER PRIMARY KEY, help_wanted INTEGER, bounties INTEGER, fetched_at TEXT
-);
+DROP TABLE IF EXISTS repo_issues;  -- the removed `demand` feature
+DROP TABLE IF EXISTS repo_demand;
 """
 
 # GitHub timestamps are `...Z`; ours use the same shape so they compare correctly as text.
@@ -271,7 +265,7 @@ def prune(conn: sqlite3.Connection, *, dry_run: bool = False) -> dict[str, int]:
                          part + part)
             conn.execute(f"DELETE FROM repo_papers WHERE ghr_id IN ({q})", part)
             conn.execute(f"DELETE FROM paper_src WHERE ghr_id IN ({q})", part)
-            for table in ("repo_money", "repo_issues", "repo_demand"):
+            for table in ("repo_money",):
                 conn.execute(f"DELETE FROM {table} WHERE ghr_id IN ({q})", part)
             conn.execute(f"DELETE FROM repo_stats WHERE ghr_id IN ({q})", part)
             conn.execute(f"DELETE FROM repos WHERE ghr_id IN ({q})", part)

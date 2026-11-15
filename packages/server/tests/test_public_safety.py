@@ -1,6 +1,5 @@
 """What an anonymous caller must not be able to do or see (the server is public, with no login)."""
 
-import sqlite3
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,17 +18,7 @@ def client(settings, tb):
     return TestClient(create_app(settings, toolbox=tb))
 
 
-def _demand_rows(path):
-    c = sqlite3.connect(path)
-    try:
-        return c.execute("SELECT COUNT(*) FROM repo_demand").fetchone()[0]
-    except sqlite3.OperationalError:  # table absent in this fixture
-        return None
-    finally:
-        c.close()
-
-
-def test_get_demand_never_touches_the_network_or_writes(tb, db_path, monkeypatch):
+def test_tools_never_touch_the_network(tb, monkeypatch):
     import httpx
 
     def boom(*a, **k):
@@ -38,25 +27,12 @@ def test_get_demand_never_touches_the_network_or_writes(tb, db_path, monkeypatch
     monkeypatch.setenv("GITHUB_TOKEN", "ghp_should_never_be_used")
     monkeypatch.setattr(httpx.Client, "send", boom)
     monkeypatch.setattr(httpx.AsyncClient, "send", boom)
-    before = _demand_rows(db_path)
-    res = tb.call("get_demand", {"full_name": "acme/rag-kit"})
-    assert res["fetched"] is False and "no demand data" in res["note"]
-    assert _demand_rows(db_path) == before
+    assert "error" not in tb.call("get_repo", {"full_name": "acme/rag-kit"})
 
 
 def test_local_machine_inspection_is_gone(tb, client):
-    import ossdex_server.alternatives as alt
-
-    assert not hasattr(alt, "inspect_local_environment")
     assert "inspect_local_environment" not in tb.tools
     assert client.get("/api/local-profile").status_code == 404
-
-
-def test_alternatives_use_the_callers_setup_not_the_hosts(tb):
-    res = tb.call("find_oss_alternatives", {"paid_product": "Notion", "os": "windows",
-                                            "habits": ["local-first"], "installed_software": ["winget"]})
-    assert res["target_os"] == "windows" and res["installed_software"] == ["winget"]
-    assert tb.call("find_oss_alternatives", {"paid_product": "Notion", "os": "auto"})["error"]
 
 
 def test_readme_excerpt_cuts_at_a_paragraph_and_links_to_github():
@@ -77,7 +53,6 @@ def test_api_serves_an_excerpt_not_the_full_readme(client, db):
 
 @pytest.mark.parametrize("path", [
     "/api/repos?q=" + "a" * 201,
-    "/api/alternatives?product=" + "a" * 101,
 ])
 def test_overlong_text_is_rejected_by_the_api(client, path):
     assert client.get(path).status_code == 422

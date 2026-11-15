@@ -15,7 +15,7 @@ from ossdex_core.store import HIDDEN, SCHEMA_VERSION
 
 BUSY_RETRIES = 5
 MMAP_BYTES = 2_147_418_112  # SQLite's default ceiling; the database is mapped, not read()
-ENRICH_TABLES = r"repo_lists|repo_papers|papers|repo_money|repo_issues|repo_demand"
+ENRICH_TABLES = r"repo_lists|repo_papers|papers|repo_money"
 
 # `gone`, `filtered` and `below` (under the star threshold) repos are hidden everywhere.
 VISIBLE = "COALESCE(enrich_status, '') NOT IN (" + ",".join(f"'{s}'" for s in HIDDEN) + ")"
@@ -147,10 +147,6 @@ class ReadDb:
     @property
     def has_money(self) -> bool:  # funding links and business-model tags
         return self._has("repo_money")
-
-    @property
-    def has_demand(self) -> bool:  # most-wanted issues, help-wanted/bounty counts
-        return self._has("repo_issues", "repo_demand")
 
     def data_version(self) -> int:
         """Changes whenever another connection (the collector) commits. It is only meaningful on one

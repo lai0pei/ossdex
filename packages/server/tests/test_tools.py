@@ -14,18 +14,16 @@ def test_schemas_cover_all_tools(tb):
     expected = {
         "search_repos", "list_repos", "get_repo", "get_readme_section",
         "get_rising", "facets", "find_similar", "compare_repos", "count_repos",
-        "find_niches", "get_demand", "opportunity_report",
+        "find_niches", "opportunity_report",
         # 14 new tools
         "classify_artifact", "get_runtime_dependencies", "classify_growth",
         "get_package_adoption", "analyze_forks", "get_maintainer_health",
-        "classify_issues", "get_commercial_landscape", "get_company_events",
+        "get_commercial_landscape", "get_company_events",
         "check_name_collision", "license_audit", "platform_compat",
         "saas_base", "evaluate_brief",
-        # alternative finder
-        "find_oss_alternatives",
     }
     assert set(schemas) == expected
-    assert len(schemas) == 27
+    assert len(schemas) == 24
     assert "query" in schemas["search_repos"]["input_schema"]["properties"]
     assert all(s["description"] for s in schemas.values())
 

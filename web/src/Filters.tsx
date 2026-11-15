@@ -209,9 +209,6 @@ export default function Filters(props: {
       label: `Business: ${m.replace("_", " ")}`,
       clear: () => onChange({ money: s.money.filter((x) => x !== m) }),
     })),
-    ...(s.has_bounties
-      ? [{ key: "bounties", label: "Has bounties", clear: () => onChange({ has_bounties: false }) }]
-      : []),
     ...(s.mentions_paper
       ? [{ key: "paper", label: "Mentions a paper", clear: () => onChange({ mentions_paper: false }) }]
       : []),
@@ -378,7 +375,7 @@ export default function Filters(props: {
         </div>
 
         {/* Sort Dropdown embedded cleanly in second row */}
-        {s.view === "cards" && (
+        {(
           <div className="filter-sort-wrap">
             <span className="sort-icon-cue"><IconSort size={12} /></span>
             <select
@@ -407,7 +404,7 @@ export default function Filters(props: {
           <button
             type="button"
             className="reset-btn"
-            onClick={() => onChange({ ...DEFAULTS, q: s.q, sort: s.sort, repo: s.repo, view: s.view })}
+            onClick={() => onChange({ ...DEFAULTS, q: s.q, sort: s.sort, repo: s.repo })}
           >
             <IconReset size={12} />
             <span>Reset</span>

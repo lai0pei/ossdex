@@ -453,15 +453,6 @@ export default function RepoDrawer({
                           <span className="signal-item-val">{analyzeSingleRepo(r).businessPrecedents.join(", ")}</span>
                         </div>
                       )}
-                      {(analyzeSingleRepo(r).demandHighlight.bounties > 0 || analyzeSingleRepo(r).demandHighlight.topWish) && (
-                        <div className="product-signal-item">
-                          <span className="signal-item-label">Community Demand</span>
-                          <span className="signal-item-val">
-                            {analyzeSingleRepo(r).demandHighlight.bounties > 0 ? `${analyzeSingleRepo(r).demandHighlight.bounties} bounties. ` : ""}
-                            {analyzeSingleRepo(r).demandHighlight.topWish ? `Top wish: "${analyzeSingleRepo(r).demandHighlight.topWish}"` : ""}
-                          </span>
-                        </div>
-                      )}
                     </div>
 
                     <div className="product-playbooks-list">
@@ -779,29 +770,6 @@ export default function RepoDrawer({
               </section>
             )}
           </div>
-
-          {r.demand && (
-            <section className="demand-box">
-              <h3>
-                What users ask for{" "}
-                <span className="muted small">
-                  {r.demand.help_wanted} help wanted · {r.demand.bounties} bounties
-                </span>
-              </h3>
-              <ol className="demand-list">
-                {r.demand.top_issues.map((i) => (
-                  <li key={i.number}>
-                    <a href={i.url} target="_blank" rel="noreferrer">
-                      {i.title}
-                    </a>{" "}
-                    <span className="muted small">
-                      👍 {i.reactions} · 💬 {i.comments}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
 
           {r.readme_excerpt && (
             <section className="readme-window">

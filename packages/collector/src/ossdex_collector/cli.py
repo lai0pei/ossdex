@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import shutil
 import sys
-from typing import Annotated
 
 import typer
 from ossdex_core.config import ROOT, Settings, load_settings, resolve_token
@@ -201,38 +200,6 @@ def enrich(offline: bool = typer.Option(False, "--offline", help="skip the arXiv
     try:
         _print_enrich(enrich_all(conn, offline=offline, log=_log))
     finally:
-        conn.close()
-
-
-@app.command()
-def demand(
-    repos: Annotated[list[str] | None, typer.Argument(help="owner/repo names to look at")] = None,
-    topic: str = typer.Option(None, "--topic", help="or the most-starred repos of this topic"),
-    top: int = typer.Option(10, "--top", help="how many repos for --topic"),
-    days: int = typer.Option(7, "--days", help="skip repos fetched within this many days"),
-    budget: int = typer.Option(None, "--budget", help="GraphQL points to spend in this run"),
-) -> None:
-    """What users of some projects ask for: most-upvoted open issues, help-wanted and bounty counts.
-    Costs a GitHub search per repo, so it runs on the repos you name, not in `update`."""
-    from ossdex_core.store import connect
-
-    from .demand import fetch_demand, pick_repos
-
-    if not repos and not topic:
-        raise _fail("give repo names (owner/repo) or --topic")
-    settings = load_settings()
-    gh = _github(settings, budget)
-    conn = connect(settings.db_path)
-    try:
-        picked = pick_repos(conn, names=repos or [], topic=topic, top=top)
-        if not picked:
-            raise _fail("none of these repos is in the database")
-        r = _guard(lambda: fetch_demand(gh, conn, picked, days=days, log=_log))
-        typer.echo(f"demand: {r.fetched} fetched, {r.fresh} fresh enough to skip"
-                   + (f", {r.gone} gone" if r.gone else ""))
-        typer.echo("next: use get_demand / opportunity_report in MCP, or open the repo")
-    finally:
-        typer.echo(f"GitHub: {gh.requests} requests, {gh.spent} GraphQL points used", err=True)
         conn.close()
 
 

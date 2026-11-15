@@ -5,7 +5,6 @@ import {
   IconCode,
   IconCopy,
   IconFileText,
-  IconLayoutGrid,
   IconSparkles,
   IconX,
 } from "./icons";
@@ -13,7 +12,6 @@ import {
 interface GuideModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigateView?: (view: "cards" | "alternatives") => void;
   onApplyQuickFilter?: (patch: { saasSafe?: boolean; money?: string[] }) => void;
 }
 
@@ -64,7 +62,6 @@ function CopyCodeBlock({ text, title }: { text: string; title?: string }) {
 export default function GuideModal({
   isOpen,
   onClose,
-  onNavigateView,
   onApplyQuickFilter,
 }: GuideModalProps) {
   const [activeTab, setActiveTab] = useState<"desktop-mcp" | "playbook" | "reference">("desktop-mcp");
@@ -170,8 +167,8 @@ export default function GuideModal({
             <div className="guide-section-content">
               <div className="guide-intro-banner">
                 <p>
-                  <strong>ossdex</strong> provides a Model Context Protocol (MCP) server exposing 27 tools and
-                  15 prompts over Streamable HTTP, from the same server as this page. It never calls GitHub or
+                  <strong>ossdex</strong> provides a Model Context Protocol (MCP) server exposing 24 tools and
+                  13 prompts over Streamable HTTP, from the same server as this page. It never calls GitHub or
                   third-party LLMs while answering, and it never looks at the machine it runs on. Every client below
                   connects to this URL:
                 </p>
@@ -250,7 +247,7 @@ export default function GuideModal({
                       <li>Save the configuration file and restart Claude Desktop.</li>
                       <li>
                         Look for the <strong>hammer (🔨)</strong> icon in the chat input bar showing connected tools
-                        (e.g. <code>search_repos</code>, <code>compare_repos</code>, <code>get_demand</code>).
+                        (e.g. <code>search_repos</code>, <code>compare_repos</code>, <code>find_niches</code>).
                       </li>
                       <li>
                         Type <code>/</code> or click the attachment menu to run prebuilt prompts like{" "}
@@ -346,7 +343,7 @@ export default function GuideModal({
               <div className="guide-card inspector-card">
                 <h4>🛠️ Test & Verify Your MCP Server</h4>
                 <p className="small">
-                  You can inspect and test all 27 tools and 15 prompts in your browser using the official MCP Inspector.
+                  You can inspect and test all 24 tools and 13 prompts in your browser using the official MCP Inspector.
                   Choose the <strong>Streamable HTTP</strong> transport and paste the URL above:
                 </p>
                 <CopyCodeBlock text={mcpInspector} title="Run MCP Inspector" />
@@ -386,7 +383,6 @@ export default function GuideModal({
                         style={{ marginTop: 8 }}
                         onClick={() => {
                           onApplyQuickFilter({ saasSafe: true, money: ["hosted_cloud", "enterprise"] });
-                          if (onNavigateView) onNavigateView("cards");
                           onClose();
                         }}
                       >
@@ -403,19 +399,6 @@ export default function GuideModal({
                   <div className="step-body">
                     <div className="step-head">
                       <h4>Single-Project Commercial Signal Auditing</h4>
-                      {onNavigateView && (
-                        <button
-                          type="button"
-                          className="btn-subtle small-btn"
-                          onClick={() => {
-                            onNavigateView("cards");
-                            onClose();
-                          }}
-                        >
-                          <IconLayoutGrid size={12} />
-                          <span>Browse Cards</span>
-                        </button>
-                      )}
                     </div>
                     <p className="small">
                       Click any repository card to open the large inspector modal. Read these 4 critical signals:
@@ -436,12 +419,8 @@ export default function GuideModal({
                         </span>
                       </div>
                       <div className="cheatsheet-item">
-                        <strong>Community Demand & Bounties</strong>
-                        <span>Upvoted issues and bounties reveal real problems users are willing to pay to fix.</span>
-                      </div>
-                      <div className="cheatsheet-item">
                         <strong>MCP Prompt Library</strong>
-                        <span>Choose from 10 specialized lenses (e.g. <em>Vertical SaaS</em>, <em>Paid Extension</em>, <em>White-Label Audit</em>) and copy in 1 click.</span>
+                        <span>Choose from 10 specialized lenses (e.g. <em>Vertical SaaS</em>, <em>Managed Cloud</em>, <em>White-Label Audit</em>) and copy in 1 click.</span>
                       </div>
                     </div>
                   </div>
@@ -453,10 +432,10 @@ export default function GuideModal({
                   <div className="step-body">
                     <h4>Deepening Data with the CLI</h4>
                     <p className="small">
-                      Supercharge the web app and MCP tools by fetching issue demand and star history for your target projects:
+                      Supercharge the web app and MCP tools by keeping star history and new repos fresh:
                     </p>
                     <CopyCodeBlock
-                      text={`# Fetch top upvoted issues and bounties for target repos:\nuv run --package ossdex-collector ossdex-collector demand owner/repo\n\n# Or fetch demand across the top 10 repos in a topic:\nuv run --package ossdex-collector ossdex-collector demand --topic agent --top 10\n\n# Daily update (refreshes star gains and new repos):\nuv run --package ossdex-collector ossdex-collector update`}
+                      text={`# Daily update (refreshes star gains and new repos):\nuv run --package ossdex-collector ossdex-collector update`}
                       title="Terminal Commands"
                     />
                   </div>
@@ -468,7 +447,7 @@ export default function GuideModal({
           {/* TAB 3: MCP TOOLS & PROMPTS REFERENCE */}
           {activeTab === "reference" && (
             <div className="guide-section-content">
-              <h3>🛠️ 27 Built-in MCP Tools</h3>
+              <h3>🛠️ 25 Built-in MCP Tools</h3>
               <p className="muted small">
                 Every tool follows strict repo-agnostic conventions: closed-set enums, null preservation for missing metrics,
                 evidence chains, and standardized envelopes (<code>as_of</code>, <code>data_coverage</code>, <code>sources</code>).
@@ -493,7 +472,7 @@ export default function GuideModal({
                     <tr>
                       <td><code>list_repos</code></td>
                       <td>Filter and sort repos by structured metrics without text query</td>
-                      <td><code>sort</code> (stars, gain_1d, gain_7d, forks), <code>money</code>, <code>has_bounties</code></td>
+                      <td><code>sort</code> (stars, gain_1d, gain_7d, forks), <code>money</code></td>
                     </tr>
                     <tr>
                       <td><code>get_repo</code></td>
@@ -514,11 +493,6 @@ export default function GuideModal({
                       <td><code>count_repos</code></td>
                       <td>Size a niche: group counts by language, license, topic, year</td>
                       <td><code>group_by</code>, filters</td>
-                    </tr>
-                    <tr>
-                      <td><code>get_demand</code></td>
-                      <td>Inspect top upvoted community issues, reactions, and bounties</td>
-                      <td><code>full_name</code></td>
                     </tr>
                     <tr>
                       <td><code>opportunity_report</code></td>
@@ -549,7 +523,7 @@ export default function GuideModal({
                 </table>
               </div>
 
-              <h4 style={{ marginTop: 24 }}>Diagnostic & Brief Evaluation Tools (15 Tools, F1–F10 Guardrails)</h4>
+              <h4 style={{ marginTop: 24 }}>Diagnostic & Brief Evaluation Tools (14 Tools, F1–F10 Guardrails)</h4>
               <div className="guide-table-wrap">
                 <table className="guide-table">
                   <thead>
@@ -591,11 +565,6 @@ export default function GuideModal({
                       <td>Push recency, release cadence, corporate backing, and bus factor risk.</td>
                     </tr>
                     <tr>
-                      <td><code>classify_issues</code></td>
-                      <td><span className="badge-tag">F9</span> Empty demand</td>
-                      <td>Clusters issues into 10 categories (compliance, hosting, performance, security) and identifies monetizable pain.</td>
-                    </tr>
-                    <tr>
                       <td><code>get_commercial_landscape</code></td>
                       <td><span className="badge-tag">F5</span> Missed precedent</td>
                       <td>Paid products, managed offerings, pricing models (per_seat, usage, flat), and source URLs.</td>
@@ -630,16 +599,11 @@ export default function GuideModal({
                       <td>End-to-End Evaluation</td>
                       <td>Fact-checks claims, scores candidate angles, and returns pursue/narrow/reject verdict with kill tests.</td>
                     </tr>
-                    <tr>
-                      <td><code>find_oss_alternatives</code></td>
-                      <td>Tailored Alternatives</td>
-                      <td>Ranks open-source replacements for paid products for the OS and habits you tell it about, with fit scores (0-100) and install commands. Nothing is read from your machine.</td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
 
-              <h3 style={{ marginTop: 28 }}>✨ 15 Pre-Engineered Prompts</h3>
+              <h3 style={{ marginTop: 28 }}>✨ 13 Pre-Engineered Prompts</h3>
               <p className="muted small">Invokable in Claude, Gemini, ChatGPT Desktop, or via the web app's Prompt Library:</p>
 
               <div className="guide-table-wrap">
@@ -652,11 +616,6 @@ export default function GuideModal({
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td><code>find_oss_alternative</code></td>
-                      <td>Alternatives & Migration</td>
-                      <td>Personalized open-source alternative recommendation, habit fit analysis, feature parity gap, and 15-minute migration plan.</td>
-                    </tr>
                     <tr>
                       <td><code>learn_repo_80_20</code></td>
                       <td>80/20 Learning</td>
@@ -696,11 +655,6 @@ export default function GuideModal({
                       <td><code>compose_product_stack</code></td>
                       <td>Multi-Repo Stack</td>
                       <td>Architects a multi-component product with role assignments and license checks.</td>
-                    </tr>
-                    <tr>
-                      <td><code>monetize_demand_gaps</code></td>
-                      <td>Monetization</td>
-                      <td>Analyzes upvoted issues and bounties to design paid plugins or extensions.</td>
                     </tr>
                     <tr>
                       <td><code>fork_and_rebrand_audit</code></td>

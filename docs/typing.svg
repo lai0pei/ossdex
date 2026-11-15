@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 130" width="760" height="130" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
+  <style>
+    .l { font-size:15px; fill:#e6edf3; }
+    .p { fill:#7ee787; }
+    .c { fill:#8b949e; }
+    .cur { fill:#e6edf3; animation:blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity:0; } }
+    @keyframes show { from { opacity:0; } to { opacity:1; } }
+    .a { opacity:0; animation:show 0.01s forwards; }
+  </style>
+  <rect width="760" height="130" rx="10" fill="#0d1117"/>
+  <circle cx="20" cy="18" r="5" fill="#ff5f56"/><circle cx="38" cy="18" r="5" fill="#ffbd2e"/><circle cx="56" cy="18" r="5" fill="#27c93f"/>
+  <text class="l a" x="20" y="55" style="animation-delay:0.3s"><tspan class="p">$</tspan> ossdex-collector update   <tspan class="c"># fetch repos from GitHub</tspan></text>
+  <text class="l a" x="20" y="80" style="animation-delay:1.6s"><tspan class="p">$</tspan> ossdex-server serve       <tspan class="c"># open the website</tspan></text>
+  <text class="l a" x="20" y="105" style="animation-delay:2.9s"><tspan class="c">http://127.0.0.1:8200  ready</tspan> <tspan class="cur">█</tspan></text>
+</svg>

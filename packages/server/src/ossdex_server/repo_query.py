@@ -42,7 +42,6 @@ class RepoFilters(BaseModel):
     names: list[str] = Field(default_factory=list, max_length=50, description="Restrict to these owner/repo names.")
     in_lists: list[str] = Field(default_factory=list, max_length=50, description="Only repos listed in any of these Awesome lists (owner/repo of the list, e.g. ['vinta/awesome-python']). Use facets() 'lists' to see the ones present.")
     money: list[str] = Field(default_factory=list, max_length=50, description="Only repos with any of these business-model hints: hosted_cloud, enterprise, pricing, support_consulting (from the README) or sponsors (lists funding links). They show companies already pay for services around the project. See facets() 'money'.")
-    has_bounties: bool = Field(False, description="Only repos with open issues labelled 'bounty' or '💎 Bounty'. Only repos fetched with `ossdex demand` are known.")
     mentions_paper: bool = Field(False, description="Only repos whose README links to an arXiv paper. This means the README mentions a paper, not that the repo implements it.")
 
     def to_filters(self) -> RepoFilters:
@@ -137,8 +136,6 @@ def where_clause(f: RepoFilters, anchor: str | None = None) -> tuple[str, list]:
                            "WHERE m.ghr_id = r.ghr_id AND j.value = ?)")
                 params.append(m)
         parts.append("(" + " OR ".join(ors) + ")")
-    if f.has_bounties:
-        parts.append("EXISTS (SELECT 1 FROM repo_demand d WHERE d.ghr_id = r.ghr_id AND d.bounties > 0)")
     return " AND ".join(parts), params
 
 
@@ -194,7 +191,7 @@ def rows_to_dtos(rows) -> list[dict]:
 
 
 def enrich_dtos(db: ReadDb, dtos: list[dict]) -> list[dict]:
-    """Batch-attach sparkline points, business signals, lists/papers count, and demand to repo DTOs."""
+    """Batch-attach sparkline points, business signals, lists/papers count to repo DTOs."""
     if not dtos:
         return dtos
 
@@ -229,9 +226,6 @@ def enrich_dtos(db: ReadDb, dtos: list[dict]) -> list[dict]:
         for r in db.query(f"SELECT ghr_id, COUNT(*) FROM repo_papers WHERE ghr_id IN ({marks}) GROUP BY ghr_id", gids):
             paper_counts[r[0]] = r[1]
 
-    # 4. Demand
-    demand_map = demand_for(db, gids, issues=1) if db.has_demand else {}
-
     for d in dtos:
         gid = d.get("ghr_id")
         if gid is None:
@@ -241,13 +235,6 @@ def enrich_dtos(db: ReadDb, dtos: list[dict]) -> list[dict]:
         d["money_signals"] = m["signals"] if m else []
         d["lists_count"] = list_counts.get(gid, 0)
         d["papers_count"] = paper_counts.get(gid, 0)
-        dem = demand_map.get(gid)
-        if dem:
-            d["bounties"] = dem.get("bounties", 0)
-            d["help_wanted"] = dem.get("help_wanted", 0)
-        else:
-            d["bounties"] = 0
-            d["help_wanted"] = 0
 
     return dtos
 
@@ -347,7 +334,6 @@ def repo_detail(db: ReadDb, full_name: str) -> dict | None:
         **dto,
         "lists": lists, "papers": papers,
         "money": money_for(db, [row["ghr_id"]]).get(row["ghr_id"]),
-        "demand": demand_for(db, [row["ghr_id"]], issues=10).get(row["ghr_id"]),
         "homepage": row["homepage"], "open_issues": row["open_issues"], "readme": row["readme"],
         "card": card["text"] if card else None, "history": history,
         "github_url": row["url"] or f"https://github.com/{row['full_name']}",
@@ -392,29 +378,6 @@ def money_for(db: ReadDb, ids: list[int]) -> dict[int, dict]:
                 signals = [*signals, "sponsors"]
             if signals or funding:
                 out[r["ghr_id"]] = {"signals": signals, "funding": funding}
-    return out
-
-
-def demand_for(db: ReadDb, ids: list[int], issues: int = 3) -> dict[int, dict]:
-    """{ghr_id: {help_wanted, bounties, fetched_at, top_issues}} for repos fetched with `ossdex demand`."""
-    out: dict[int, dict] = {}
-    if not ids or not db.has_demand:
-        return out
-    for i in range(0, len(ids), 500):
-        part = ids[i:i + 500]
-        marks = ",".join("?" * len(part))
-        for r in db.query(f"SELECT ghr_id, help_wanted, bounties, fetched_at FROM repo_demand "
-                          f"WHERE ghr_id IN ({marks})", part):
-            out[r["ghr_id"]] = {"help_wanted": r["help_wanted"], "bounties": r["bounties"],
-                                "fetched_at": r["fetched_at"], "top_issues": []}
-        for r in db.query(f"SELECT ghr_id, number, title, url, reactions, comments, labels FROM "
-                          f"repo_issues WHERE ghr_id IN ({marks}) ORDER BY reactions DESC, comments DESC",
-                          part):
-            d = out.get(r["ghr_id"])
-            if d is not None and len(d["top_issues"]) < issues:
-                d["top_issues"].append({"number": r["number"], "title": r["title"], "url": r["url"],
-                                        "reactions": r["reactions"], "comments": r["comments"],
-                                        "labels": _json_list(r["labels"])})
     return out
 
 

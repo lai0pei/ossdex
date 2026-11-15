@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import type { Repo, RepoPage } from "./types";
 import type { ListState } from "./state";
 import { agoWithDate, langColor } from "./ago";
-import AlternativesWorkbench from "./AlternativesWorkbench";
 import {
   IconAward,
   IconBookmark,
@@ -139,8 +138,6 @@ export function MiniSparkline({
   );
 }
 
-export type ViewMode = "cards" | "alternatives";
-
 export default function RepoList(props: {
   data: RepoPage | undefined;
   loading: boolean;
@@ -158,7 +155,6 @@ export default function RepoList(props: {
     savedRepos = [],
     onToggleSaved,
   } = props;
-  const viewMode: ViewMode = s.view || "cards";
   const [focusIdx, setFocusIdx] = useState<number>(-1);
 
   useEffect(() => {
@@ -167,7 +163,6 @@ export default function RepoList(props: {
 
   // Keyboard navigation for cards: j/k moves focus, Enter opens inspector
   useEffect(() => {
-    if (viewMode !== "cards") return;
     const items = data?.items ?? [];
     if (items.length === 0) return;
     const onKey = (e: KeyboardEvent) => {
@@ -196,7 +191,7 @@ export default function RepoList(props: {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [data?.items, focusIdx, onChange, s.repo, viewMode]);
+  }, [data?.items, focusIdx, onChange, s.repo]);
 
   const searching = s.q.trim() !== "";
   const pages = data ? Math.max(1, Math.ceil(data.total / props.pageSize)) : 1;
@@ -205,17 +200,7 @@ export default function RepoList(props: {
     <section className="list">
       {props.error && <div className="error-banner">Could not load repositories: {props.error.message}</div>}
 
-      {/* Alternatives & Local Workflow View */}
-      {viewMode === "alternatives" && (
-        <AlternativesWorkbench
-          onOpenRepo={(fullName) => onChange({ repo: fullName }, false)}
-          savedRepos={savedRepos}
-          onToggleSaved={onToggleSaved}
-        />
-      )}
-
-      {/* Cards View (Default) */}
-      {viewMode === "cards" && (
+      {(
         <ul className="repos profile-grid">
           {props.loading && !data && Array.from({ length: 8 }).map((_, idx) => (
             <li key={idx} className="repo-card skeleton-card" aria-hidden="true">
@@ -243,8 +228,7 @@ export default function RepoList(props: {
             const forkRatio = r.stars && r.forks ? ((r.forks / r.stars) * 100).toFixed(1) : null;
             const hasSignals = (r.money_signals && r.money_signals.length > 0) ||
                                (r.lists_count != null && r.lists_count > 0) ||
-                               (r.papers_count != null && r.papers_count > 0) ||
-                               (r.bounties != null && r.bounties > 0);
+                               (r.papers_count != null && r.papers_count > 0);
 
             return (
               <li
@@ -381,11 +365,6 @@ export default function RepoList(props: {
                           <span>{r.papers_count} {r.papers_count === 1 ? "paper" : "papers"}</span>
                         </span>
                       )}
-                      {r.bounties != null && r.bounties > 0 && (
-                        <span className="signal-badge bounty" title={`Has ${r.bounties} open bounties`}>
-                          <span>🪙 {r.bounties}</span>
-                        </span>
-                      )}
                     </div>
                   )}
 
@@ -462,7 +441,7 @@ export default function RepoList(props: {
       )}
 
       {/* Pagination (for cards view) */}
-      {viewMode === "cards" && data && pages > 1 && (
+      {data && pages > 1 && (
         <nav className="pager" aria-label="Pagination">
           <button className="btn pager-btn prev" disabled={s.page <= 1} onClick={() => onChange({ page: s.page - 1 }, false)}>
             <IconChevronLeft size={14} />

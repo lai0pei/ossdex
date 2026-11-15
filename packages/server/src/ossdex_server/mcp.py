@@ -19,7 +19,6 @@ from .db import open_db
 from .tools import (
     CompareArgs,
     CountArgs,
-    DemandArgs,
     ListReposArgs,
     NichesArgs,
     OpportunityArgs,
@@ -55,7 +54,6 @@ MinGain = Annotated[int | None, _doc(_Filters, "min_gain")]
 GainDays = Annotated[Literal[1, 7, 30] | None, _doc(_Filters, "gain_days")]
 InLists = Annotated[list[str] | None, _doc(_Filters, "in_lists")]
 Money = Annotated[list[str] | None, _doc(_Filters, "money")]
-HasBounties = Annotated[bool | None, _doc(_Filters, "has_bounties")]
 MentionsPaper = Annotated[bool | None, _doc(_Filters, "mentions_paper")]
 LicensedOnly = Annotated[bool | None, _doc(_Filters, "licensed_only")]
 GroupBy = Literal["language", "license_kind", "topic", "created_year", "pushed_year"]
@@ -101,7 +99,7 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
                      pushed_after: PushedAfter = None, pushed_before: PushedBefore = None, min_gain: MinGain = None,
                      gain_days: GainDays = None, licensed_only: LicensedOnly = None,
                      in_lists: InLists = None, mentions_paper: MentionsPaper = None,
-                     money: Money = None, has_bounties: HasBounties = None,
+                     money: Money = None,
                      limit: int = 10, offset: Annotated[int, _doc(SearchReposArgs, "offset")] = 0
                      ) -> dict:
         return await call("search_repos", query=query, languages=languages, topics=topics,
@@ -109,7 +107,7 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
                     max_stars=max_stars, min_forks=min_forks, max_forks=max_forks, pushed_after=pushed_after, pushed_before=pushed_before,
                     min_gain=min_gain, gain_days=gain_days, licensed_only=licensed_only,
                     in_lists=in_lists, mentions_paper=mentions_paper, money=money,
-                    has_bounties=has_bounties, limit=limit, offset=offset)
+                    limit=limit, offset=offset)
 
     @reg("list_repos")
     async def list_repos(languages: Languages = None, topics: Topics = None, licenses: Licenses = None,
@@ -118,14 +116,14 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
                    pushed_after: PushedAfter = None, pushed_before: PushedBefore = None, min_gain: MinGain = None,
                    gain_days: GainDays = None, licensed_only: LicensedOnly = None,
                    in_lists: InLists = None, mentions_paper: MentionsPaper = None,
-                   money: Money = None, has_bounties: HasBounties = None,
+                   money: Money = None,
                    sort: SortName = "stars", limit: int = 20,
                    offset: Annotated[int, _doc(ListReposArgs, "offset")] = 0) -> dict:
         return await call("list_repos", languages=languages, topics=topics, licenses=licenses,
                     license_kinds=license_kinds, min_stars=min_stars, max_stars=max_stars,
                     min_forks=min_forks, max_forks=max_forks, pushed_after=pushed_after, pushed_before=pushed_before, min_gain=min_gain,
                     gain_days=gain_days, licensed_only=licensed_only, in_lists=in_lists,
-                    mentions_paper=mentions_paper, money=money, has_bounties=has_bounties,
+                    mentions_paper=mentions_paper, money=money,
                     sort=sort, limit=limit,
                     offset=offset)
 
@@ -160,10 +158,6 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
                     limit: int = 15) -> dict:
         return await call("find_niches", languages=languages, topics=topics, license_kinds=license_kinds,
                     days=days, min_repos=min_repos, sort=sort, limit=limit)
-
-    @reg("get_demand")
-    async def get_demand(full_name: Annotated[str, _doc(DemandArgs, "full_name")]) -> dict:
-        return await call("get_demand", full_name=full_name)
 
     @reg("opportunity_report")
     async def opportunity_report(language: Annotated[str | None, _doc(OpportunityArgs, "language")] = None,
@@ -214,10 +208,6 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
     async def get_maintainer_health(full_name: str, months: int = 6) -> dict:
         return await call("get_maintainer_health", full_name=full_name, months=months)
 
-    @reg("classify_issues")
-    async def classify_issues(full_name: str, top_n: int = 100) -> dict:
-        return await call("classify_issues", full_name=full_name, top_n=top_n)
-
     @reg("get_commercial_landscape")
     async def get_commercial_landscape(full_name: str | None = None, category: str | None = None, limit: int = 10) -> dict:
         return await call("get_commercial_landscape", full_name=full_name, category=category, limit=limit)
@@ -245,27 +235,6 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
     @reg("evaluate_brief")
     async def evaluate_brief(full_name: str, angles: list[str] | None = None, brief_claims: dict | None = None) -> dict:
         return await call("evaluate_brief", full_name=full_name, angles=angles, brief_claims=brief_claims)
-
-    @reg("find_oss_alternatives")
-    async def find_oss_alternatives(
-        paid_product: str,
-        os: Literal["macos", "linux", "windows"] = "linux",
-        habits: list[str] | None = None,
-        installed_software: list[str] | None = None,
-        license_kinds: Kinds = None,
-        min_stars: MinStars = None,
-        limit: int = 8,
-    ) -> dict:
-        return await call(
-            "find_oss_alternatives",
-            paid_product=paid_product,
-            os=os,
-            habits=habits,
-            installed_software=installed_software,
-            license_kinds=license_kinds,
-            min_stars=min_stars,
-            limit=limit,
-        )
 
     @mcp.resource("ossdex://repo/{owner}/{name}")
     async def repo_readme(owner: str, name: str) -> str:
@@ -329,10 +298,10 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             f"Design a vertical SaaS product based on {repo_or_niche} tailored specifically for "
             f"the {target_industry} industry.\n"
             "Use the ossdex tools:\n"
-            "1. If a specific repo is named, run get_repo and get_demand on it. If a concept is "
+            "1. If a specific repo is named, run get_repo on it. If a concept is "
             "named, search_repos with license_kinds=['permissive'] to find permissive candidates.\n"
             "2. Run find_similar to check if competitors or alternatives already serve this space.\n"
-            "3. Inspect get_demand for enterprise requests: compliance, audit trails, security, SSO, "
+            "3. Check the README (get_readme_section) for enterprise needs: compliance, audit trails, security, SSO, "
             "and domain-specific integrations.\n"
             "4. Deliver: (a) Value proposition for the target vertical; (b) Required compliance & "
             "custom connectors (e.g. HIPAA, SOC2, FINRA, GDPR); (c) Packaging & pricing tiers; "
@@ -356,22 +325,6 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             "proprietary code, or isolate them behind microservice/RPC boundaries.\n"
             "4. Deliver: (a) Architectural topology with assigned roles; (b) Data flow & inter-service "
             "communication protocols; (c) License gate audit and isolation strategy; (d) MVP roadmap.")
-
-    @mcp.prompt(name="monetize_demand_gaps", description="Analyze unmet community demand, bounties, "
-                                                         "and upvoted issues to build paid extensions "
-                                                         "or services.")
-    def monetize_demand_gaps(full_name: str) -> str:
-        return (
-            f"Analyze unmet community demand and monetization opportunities around: {full_name}.\n"
-            "Use the ossdex tools:\n"
-            "1. Run get_demand(full_name=full_name) to inspect top upvoted open issues, reactions, "
-            "comments, and bounty counts.\n"
-            "2. Run get_repo(full_name=full_name) to review funding links, sponsors, and existing "
-            "commercial signals.\n"
-            "3. Identify the #1 highest-ROI paid extension, plugin, or enterprise integration to build.\n"
-            "4. Deliver: (a) Validated problem breakdown from issue comments; (b) Technical extension "
-            "architecture; (c) Monetization model (one-time license vs. SaaS connector); (d) Outreach "
-            "plan to convert the issue upvoters into beta customers.")
 
     @mcp.prompt(name="fork_and_rebrand_audit", description="Technical and legal checklist for safely "
                                                            "forking, rebranding, and white-labeling "
@@ -401,8 +354,8 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             "competitors.\n"
             "2. Run compare_repos across {full_name} and the top 3-4 alternatives to analyze star velocity, "
             "fork ratios, license restrictions, and open issue backlogs.\n"
-            "3. For the top competitors, inspect get_demand to see where users are unhappy or requesting "
-            "missing capabilities.\n"
+            "3. For the top competitors, inspect get_maintainer_health and get_commercial_landscape to see "
+            "where they are weak or unmaintained.\n"
             "4. Deliver: (a) Competitive feature & licensing matrix; (b) Underserved positioning wedge; "
             "(c) Defensibility strategy against upstream or competing alternatives.")
 
@@ -416,9 +369,9 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             f"Scan for breakout open-source opportunities{lang_note}{topic_note} over the last {days} days.\n"
             "Use the ossdex tools:\n"
             "1. Run opportunity_report(language=language, topic=topic, days=days) to find fast-growing "
-            "niches with business-model signals and unmet demand.\n"
+            "niches with business-model signals.\n"
             "2. Run find_niches and get_rising to verify star acceleration and maintained share.\n"
-            "3. For the standout rising project, run get_demand and compare_repos to validate traction.\n"
+            "3. For the standout rising project, run compare_repos to validate traction.\n"
             "4. Deliver: (a) Top 3 breakout themes; (b) Market gaps with few repos but high momentum; "
             "(c) 2 actionable product concepts to build in these niches.")
 
@@ -437,8 +390,7 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             "6. Run check_name_collision(name=full_name.split('/')[1]) to check trademark/name collisions (F6).\n"
             "7. Run license_audit(full_name=full_name) to audit system binaries and copyleft risks (F7).\n"
             "8. Run platform_compat(full_name=full_name) to evaluate serverless, GPU, and daemon constraints (F8).\n"
-            "9. Run classify_issues(full_name=full_name) and get_demand(full_name=full_name) to cluster monetizable pain (F9).\n"
-            "10. Finally, run evaluate_brief(full_name=full_name) to synthesize the evidence-based verdict (pursue/narrow/reject), "
+            "9. Finally, run evaluate_brief(full_name=full_name) to synthesize the evidence-based verdict (pursue/narrow/reject), "
             "recommend the commercial wedge, and specify concrete kill tests.")
 
     @mcp.prompt(name="articulate_repo_ideas", description="Brainstorm and articulate 5 concrete product/startup ideas based on an open-source repository.")
@@ -446,17 +398,16 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
         aud_note = f" Target audience hint: {target_audience}." if target_audience else ""
         return (
             f"Brainstorm and articulate 5 concrete, evidence-based commercial product ideas based on repository: {full_name}.{aud_note}\n"
-            "Use the ossdex tools to discover what the repository provides, where real demand exists, and which business shapes are viable:\n"
+            "Use the ossdex tools to discover what the repository provides, where real traction exists, and which business shapes are viable:\n"
             "1. Run classify_artifact(full_name=full_name) to confirm the artifact kind (app vs library vs template) and viable SaaS shapes.\n"
             "2. Run get_repo(full_name=full_name) and get_readme_section to inspect core capabilities, architectural boundaries, and dependencies.\n"
-            "3. Run classify_issues(full_name=full_name) and get_demand(full_name=full_name) to extract the most painful user problems and requested features.\n"
-            "4. Run get_commercial_landscape(full_name=full_name) and find_similar(full_name=full_name) to identify existing competitors and market voids.\n"
-            "5. Run license_audit(full_name=full_name) to ensure the proposed commercial ideas comply with license obligations.\n"
+            "3. Run get_commercial_landscape(full_name=full_name) and find_similar(full_name=full_name) to identify existing competitors and market voids.\n"
+            "4. Run license_audit(full_name=full_name) to ensure the proposed commercial ideas comply with license obligations.\n"
             "Deliver 5 distinct product ideas across viable formats (e.g., Managed Cloud / Hosted API / Vertical Edition / Developer DX Plugin / Workflow Automation). For each idea deliver:\n"
             "(a) One-Sentence Pitch: An [X] for [Persona Y] that solves [Pain Z] without [Friction W];\n"
             "(b) Commercial Shape & Packaging (seat-based, usage-based, or enterprise tier);\n"
             "(c) 80/20 Value Split: What the open-source repo supplies vs. what proprietary value you build on top;\n"
-            "(d) Grounding Evidence: Specific issues, missing features, or demand signals from the tools;\n"
+            "(d) Grounding Evidence: Specific capabilities, gaps, or traction signals from the tools;\n"
             "(e) Fastest 14-day MVP wedge and kill criteria.")
 
     @mcp.prompt(name="articulate_stack_ideas", description="Brainstorm 4 concrete '1+1=3' mashup product ideas combining 2 to 6 open-source repositories.")
@@ -467,8 +418,7 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             "Use the ossdex tools to analyze component synergies, license boundaries, and integration seams:\n"
             "1. Run compare_repos across all specified repositories to evaluate side-by-side maturity, maintenance, and license kinds.\n"
             "2. For each repo, run classify_artifact to assign complementary architectural roles (e.g., core compute engine, API gateway, UI frontend, vector storage, agent orchestration).\n"
-            "3. Run get_demand on each repository to pinpoint integration gaps and requested connectors between these ecosystems.\n"
-            "4. Deliver 4 distinct mashup product concepts that can only exist by uniting these specific repositories:\n"
+            "3. Deliver 4 distinct mashup product concepts that can only exist by uniting these specific repositories:\n"
             "(a) Unified Product Narrative & Pitch: What the composed product does and who pays for it;\n"
             "(b) Architectural Topology: How each repo functions as a modular subsystem and where the proprietary glue sits;\n"
             "(c) Synergy Moat: Why this specific combination creates an unfair advantage over standalone single-repo wrappers;\n"
@@ -487,8 +437,7 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             "1. Run classify_artifact(full_name=full_name) to understand what kind of artifact this is (library, CLI, app, framework) and how it runs.\n"
             "2. Run get_repo(full_name=full_name) and get_readme_section(full_name=full_name, query='quickstart installation usage architecture api') to extract the official entry points.\n"
             "3. Run get_runtime_dependencies(full_name=full_name) to identify required credentials, backend services, or system binaries.\n"
-            "4. Run classify_issues(full_name=full_name) to identify real user stumbling blocks, particularly around installation, environment, and docs.\n"
-            "Deliver a structured Pareto 80/20 Mastery Guide with:\n"
+                        "Deliver a structured Pareto 80/20 Mastery Guide with:\n"
             "(a) Prerequisite Knowledge Checklist: Essential languages, libraries, and concepts split into 'Must-Know Now (20%)' vs. 'Look Up Later (80%)';\n"
             "(b) The 20% Core to Learn First: The 3-5 primary abstractions, APIs, or commands that deliver 80% of real-world value;\n"
             "(c) The 80% You Can Safely Ignore Initially: Advanced internals, niche adapters, or legacy flags to skip on Day 1;\n"
@@ -509,23 +458,6 @@ def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
             "(b) The 20% Integration Surface: Exactly which APIs or data structures connect the repos;\n"
             "(c) Optimal Learning Sequence: Order in which to learn the components (e.g., Engine -> Interface -> Auth);\n"
             "(d) Weekend Stitch-Together Mini-Project: A step-by-step build lab to get a working integrated prototype in 48 hours.")
-
-    @mcp.prompt(name="find_oss_alternative", description="Find, analyze, and articulate tailored open-source alternatives for a paid product based on user OS, habits, and installed software.")
-    def find_oss_alternative(paid_product: str, habits: str = "", workflow_notes: str = "") -> str:
-        habits_note = f" User habits preference: {habits}." if habits else ""
-        wf_note = f" Workflow context: {workflow_notes}." if workflow_notes else ""
-        return (
-            f"Find, analyze, and articulate the best open-source alternatives for: {paid_product}.{habits_note}{wf_note}\n"
-            "Use the ossdex tools to evaluate top open-source candidates:\n"
-            "1. Ask the user for their operating system (macos, linux or windows), daily habits (cli-first, keyboard-driven, native-gui, local-first, self-hosted-docker) and installed tools (brew, docker, cargo...), unless they already said.\n"
-            f"2. Run `find_oss_alternatives(paid_product='{paid_product}', os=..., habits=[...], installed_software=[...])` to retrieve ranked open-source candidates with fit scores, tailored install commands, and habit synergy analysis.\n"
-            "3. If candidate details or README sections are needed, run `get_repo(full_name=candidate)` and `get_readme_section` on the top 2-3 finalists.\n"
-            "4. Compare the top finalists using `compare_repos`.\n"
-            "Deliver a tailored Open-Source Alternative & Migration Report:\n"
-            "(a) Executive Recommendation: The #1 best overall match, #1 CLI/TUI pick, and #1 native/GUI pick for the user's specific OS;\n"
-            "(b) Deep-Dive Candidate Matrix: For each top recommendation, detail why it fits their habits (e.g. Vim keybindings, offline SQLite, local Docker), workflow synergies with their installed software, and exact tailored install command;\n"
-            "(c) Honest Trade-Offs & Feature Parity: Specific capabilities the proprietary product has that are missing, and how to bridge them;\n"
-            "(d) 15-Minute Migration Plan: Step-by-step export, import, and configuration guide to switch smoothly.")
 
     @mcp.resource("ossdex://status")
     def status() -> str:

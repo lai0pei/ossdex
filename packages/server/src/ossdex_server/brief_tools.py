@@ -9,7 +9,6 @@ Prevents failure modes F1 through F10:
 - F6: Name/trademark collision (collision with existing repo or trademark)
 - F7: License blind spot (copyleft system binaries, model weights, vendor ToS)
 - F8: Platform blind spot (target hosting cannot run workloads)
-- F9: Empty demand data ("0 bounties" reported when demand was never fetched)
 - F10: Noisy similarity (surfacing semantic vs keyword match provenance)
 
 Conventions:
@@ -54,11 +53,6 @@ ForkInterpretation = Literal[
 ]
 
 MaintainerRisk = Literal["low", "medium", "high"]
-
-IssueClusterLabel = Literal[
-    "install_environment", "hosting_deployment", "performance_scaling",
-    "bug", "feature_request", "integration", "docs", "security", "compliance", "other"
-]
 
 VendorType = Literal[
     "managed_service", "api", "platform", "enterprise_edition", "consultancy"
@@ -118,6 +112,7 @@ def classify_artifact(db: ReadDb, full_name: str) -> dict:
     readme = (repo.get("readme") or "").lower()
     lang = (repo.get("language") or "").lower()
     name_lower = full_name.lower()
+    repo_part = name_lower.split("/", 1)[-1]  # "awesome-x" in "owner/awesome-x"
 
     evidence: list[str] = []
     kind: ArtifactKind = "unknown"
@@ -128,7 +123,7 @@ def classify_artifact(db: ReadDb, full_name: str) -> dict:
 
     # 1. Awesome list detection
     if any(t in ("awesome", "awesome-list", "awesome-lists") for t in topics) or \
-       name_lower.startswith("awesome-") or name_lower.endswith("-awesome") or \
+       repo_part.startswith("awesome-") or repo_part.endswith("-awesome") or repo_part == "awesome" or \
        "curated list of" in desc or "curated list of" in readme[:500]:
         kind = "awesome_list"
         deployable = False
@@ -619,111 +614,6 @@ def get_maintainer_health(db: ReadDb, full_name: str, months: int = 6) -> dict:
 
 
 # -----------------------------------------------------------------------------
-# Tool 7: classify_issues [prevents F9]
-# -----------------------------------------------------------------------------
-class ClassifyIssuesArgs(BaseModel):
-    full_name: str = Field(max_length=100, description="owner/repo, e.g. 'n8n-io/n8n'")
-    top_n: int = Field(100, ge=10, le=200)
-
-
-_ISSUE_CLUSTERS: list[tuple[IssueClusterLabel, list[str]]] = [
-    ("compliance", ["sso", "saml", "audit", "gdpr", "hipaa", "soc2", "rbac", "license", "legal"]),
-    ("hosting_deployment", ["docker", "kubernetes", "k8s", "helm", "deploy", "cloud", "aws", "gcp", "vercel", "systemd"]),
-    ("security", ["vulnerability", "cve", "auth", "token", "xss", "csrf", "secret", "permission"]),
-    ("performance_scaling", ["memory", "leak", "slow", "cpu", "scale", "timeout", "latency", "bottleneck", "crash"]),
-    ("integration", ["plugin", "connector", "webhook", "api", "zapier", "slack", "postgres", "database", "adapter"]),
-    ("install_environment", ["install", "setup", "build", "pip", "npm", "cmake", "windows", "macos", "arm64", "cuda"]),
-    ("docs", ["documentation", "readme", "tutorial", "typo", "guide", "docs"]),
-    ("bug", ["bug", "fix", "error", "fail", "broken", "issue"]),
-    ("feature_request", ["feature", "request", "support", "add", "option"]),
-]
-
-
-def classify_issues(db: ReadDb, full_name: str, top_n: int = 100) -> dict:
-    repo = _get_base_detail(db, full_name)
-    if repo is None:
-        return {
-            "error": f"{full_name} is not in the database",
-            "repo": full_name,
-            "total_open": 0,
-            "clusters": [],
-            "monetizable_pain": [],
-            "help_wanted_count": None,
-            "bounty_count": None,
-            "as_of": db.as_of or _now_iso(),
-            "data_coverage": "missing",
-            "sources": ["ossdex.db"],
-        }
-
-    demand = repo.get("demand")
-    # F9 prevention: if demand was never fetched, return explicit missing coverage
-    if demand is None:
-        return {
-            "repo": full_name,
-            "total_open": repo.get("open_issues") or 0,
-            "clusters": [],
-            "monetizable_pain": [],
-            "help_wanted_count": None,
-            "bounty_count": None,
-            "note": f"demand data not fetched yet: run `ossdex demand {full_name}`",
-            "as_of": db.as_of or _now_iso(),
-            "data_coverage": "missing",
-            "sources": ["repos"],
-        }
-
-    issues = demand.get("top_issues") or []
-    cluster_buckets: dict[IssueClusterLabel, list[dict]] = {label: [] for label, _ in _ISSUE_CLUSTERS}
-    cluster_buckets["other"] = []
-
-    for iss in issues[:top_n]:
-        title_lower = (iss.get("title") or "").lower()
-        labels_lower = [str(l).lower() for l in (iss.get("labels") or [])]
-        text = f"{title_lower} {' '.join(labels_lower)}"
-
-        assigned = False
-        for label, keywords in _ISSUE_CLUSTERS:
-            if any(kw in text for kw in keywords):
-                cluster_buckets[label].append(iss)
-                assigned = True
-                break
-        if not assigned:
-            cluster_buckets["other"].append(iss)
-
-    clusters_output: list[dict] = []
-    monetizable_pain: list[str] = []
-    monetizable_labels = {"compliance", "hosting_deployment", "performance_scaling", "integration", "security"}
-
-    for label, bucket in cluster_buckets.items():
-        if not bucket:
-            continue
-        total_upvotes = sum(int(x.get("reactions") or 0) for x in bucket)
-        examples = [
-            {"number": x["number"], "title": x["title"], "url": x["url"]}
-            for x in bucket[:3]
-        ]
-        clusters_output.append({
-            "label": label,
-            "count": len(bucket),
-            "upvotes": total_upvotes,
-            "examples": examples,
-        })
-        if label in monetizable_labels and (len(bucket) >= 1 or total_upvotes >= 5):
-            monetizable_pain.append(label)
-
-    return {
-        "repo": full_name,
-        "total_open": repo.get("open_issues") or len(issues),
-        "clusters": clusters_output,
-        "monetizable_pain": sorted(monetizable_pain),
-        "help_wanted_count": demand.get("help_wanted"),
-        "bounty_count": demand.get("bounties"),
-        "as_of": db.as_of or _now_iso(),
-        "data_coverage": "complete",
-        "sources": ["repo_demand", "repo_issues"],
-    }
-
-
-# -----------------------------------------------------------------------------
 # Tool 8: get_commercial_landscape [prevents F5]
 # -----------------------------------------------------------------------------
 class CommercialLandscapeArgs(BaseModel):
@@ -1194,13 +1084,12 @@ def evaluate_brief(
     # Execute underlying diagnostic tools
     calls_made = [
         "classify_artifact", "get_runtime_dependencies", "classify_growth",
-        "analyze_forks", "classify_issues", "license_audit", "platform_compat"
+        "analyze_forks", "license_audit", "platform_compat"
     ]
     artifact = classify_artifact(db, full_name)
     deps = get_runtime_dependencies(db, full_name)
     growth = classify_growth(db, full_name)
     forks = analyze_forks(db, full_name)
-    issues = classify_issues(db, full_name)
     lic = license_audit(db, full_name)
 
     corrected_signals: list[dict] = []
@@ -1254,15 +1143,6 @@ def evaluate_brief(
             "evidence": f"license_audit verdict: {lic['verdict']['hosted_saas']} (license: {repo.get('license')})",
         })
 
-    # Check claim: demand
-    if "demand" in claims:
-        status = "unverified" if issues["data_coverage"] == "missing" else "confirmed"
-        corrected_signals.append({
-            "claim": "validated community demand",
-            "status": status,
-            "evidence": f"demand coverage: {issues['data_coverage']} (bounties: {issues.get('bounty_count')})",
-        })
-
     # Formulate verdict and angle scoring
     verdict: BriefVerdict = "pursue"
     blockers: list[str] = []
@@ -1298,12 +1178,11 @@ def evaluate_brief(
     recommended_wedge = "Managed Cloud Edition with Enterprise SSO" if artifact["deployable"] else "Productized Implementation & Support SLA"
 
     kill_tests = [
-        "Reach out to 5 upvoters of top demand issues; abort if 0 willing to pilot an MVP.",
+        "Reach out to 5 likely users; abort if 0 are willing to pilot an MVP.",
         "Deploy on container host (Fly.io/Docker) within 24 hours to verify zero upstream licensing/runtime lock-in.",
     ]
 
     next_checks = [
-        f"Run `ossdex demand {full_name}` to fetch fresh issue signals." if issues["data_coverage"] == "missing" else "Review top demand issues.",
         "Conduct competitive pricing check on alternative managed vendors.",
     ]
 
@@ -1319,5 +1198,5 @@ def evaluate_brief(
         "calls_made": calls_made,
         "as_of": db.as_of or _now_iso(),
         "data_coverage": "complete" if repo.get("readme") else "partial",
-        "sources": ["brief_tools", "repos", "repo_stats", "repo_demand"],
+        "sources": ["brief_tools", "repos", "repo_stats"],
     }

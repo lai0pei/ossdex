@@ -18,12 +18,10 @@ from ossdex_core.licenses import KIND_NOTES
 from pydantic import BaseModel, Field, ValidationError
 
 from . import repo_query as rq
-from .alternatives import FindAlternativesArgs, find_oss_alternatives
 from .brief_tools import (
     AnalyzeForksArgs,
     ClassifyArtifactArgs,
     ClassifyGrowthArgs,
-    ClassifyIssuesArgs,
     CommercialLandscapeArgs,
     CompanyEventsArgs,
     EvaluateBriefArgs,
@@ -38,7 +36,6 @@ from .brief_tools import (
     check_name_collision,
     classify_artifact,
     classify_growth,
-    classify_issues,
     evaluate_brief,
     get_commercial_landscape,
     get_company_events,
@@ -110,10 +107,6 @@ class NichesArgs(_Filters):
         "growth", description="growth: most stars gained in total; momentum: most gained per repo "
         "(small, fast topics); size: most total stars.")
     limit: int = Field(15, ge=1, le=40)
-
-
-class DemandArgs(BaseModel):
-    full_name: str = Field(max_length=100, description="owner/repo, e.g. 'n8n-io/n8n'.")
 
 
 class OpportunityArgs(BaseModel):
@@ -262,16 +255,11 @@ class Toolbox:
                  "to pick an ecosystem to specialise in or build for: a topic with fast growth and "
                  "few repos is room. Narrow with language/topic/license filters.",
                  NichesArgs, self._niches),
-            Tool("get_demand",
-                 "What users of one project ask for: its most-upvoted open issues and how many "
-                 "open issues are labelled help wanted or bounty. Only for repos whose demand was collected; "
-                 "says so when there is nothing stored. Use it for feature ideas, "
-                 "plugin ideas and paid-work leads.", DemandArgs, self._demand),
             Tool("opportunity_report",
                  "For someone who wants to earn money from open source (freelancing, plugins, "
                  "hosting): the fastest-growing niches, and in each the top rising repos with "
                  "business-model hints (hosted cloud, enterprise, pricing, paid support, sponsors) "
-                 "and, when fetched, bounties and most-wanted issues. Use it for 'where can I "
+                 "Use it for 'where can I "
                  "freelance', 'what should I build'.", OpportunityArgs, self._opportunity),
             Tool("facets",
                  "The languages, topics and licenses present in the database with repo counts. "
@@ -302,11 +290,6 @@ class Toolbox:
                  "Maintainer health, cadence, bus-factor, push recency, and corporate/org backing. "
                  "Evaluates supply chain risk and supports SLA/services angles.",
                  MaintainerHealthArgs, self._get_maintainer_health),
-            Tool("classify_issues",
-                 "Cluster open issues into 10 pain categories (compliance, hosting_deployment, "
-                 "performance_scaling, security, integration, etc.) and identify monetizable pain. "
-                 "Prevents empty demand misinterpretation (F9).",
-                 ClassifyIssuesArgs, self._classify_issues),
             Tool("get_commercial_landscape",
                  "Paid products, managed offerings, and competitor vendors in the same category with "
                  "pricing models and sources. Prevents missed commercial precedent (F5).",
@@ -332,14 +315,8 @@ class Toolbox:
                  SaasBaseToolArgs, self._saas_base),
             Tool("evaluate_brief",
                  "End-to-end evidence-based evaluation of a Product Idea Brief. Fact-checks claims "
-                 "(velocity, forks, demand, license), scores angles, and outputs reject/narrow/pursue verdict.",
+                 "(velocity, forks, license), scores angles, and outputs reject/narrow/pursue verdict.",
                  EvaluateBriefArgs, self._evaluate_brief),
-            Tool("find_oss_alternatives",
-                 "Find, rank, and articulate personalized open-source alternatives for a paid product "
-                 "(e.g. Notion, Postman, TablePlus, Raycast, Docker Desktop, Zapier, 1Password) based on the "
-                 "user's OS, habits (cli-first, keyboard-driven, native-gui, local-first, self-hosted-docker), "
-                 "and local workflow. Provides fit scores, tailored install commands, and trade-offs.",
-                 FindAlternativesArgs, self._find_oss_alternatives),
         ]
 
     def _search_repos(self, a: SearchReposArgs) -> dict:
@@ -371,8 +348,6 @@ class Toolbox:
         if d.get("money"):
             out["business_hints"] = d["money"]["signals"]
             out["funding_links"] = [x["url"] for x in d["money"]["funding"] if x.get("url")]
-        if d.get("demand"):
-            out["demand"] = d["demand"]
         out["license_note"] = KIND_NOTES[d["license_kind"]]
         if not d["has_readme"]:
             out["note"] = "no README stored for this repo yet"
@@ -446,63 +421,22 @@ class Toolbox:
     def _niches(self, a: NichesArgs) -> dict:
         return rq.niches(self.db, a.to_filters(), a.days, a.min_repos, a.sort, a.limit)
 
-    def _demand(self, a: DemandArgs) -> dict:
-        row = self.db.one("SELECT ghr_id, full_name FROM repos WHERE lower(full_name) = lower(?)", (a.full_name,))
-        if row is None:
-            return {
-                "error": f"{a.full_name} is not in the database",
-                "repo": a.full_name,
-                "fetched": False,
-                "top_upvoted_issues": [],
-                "help_wanted_count": None,
-                "bounty_count": None,
-                "data_coverage": "missing",
-            }
-        d = rq.demand_for(self.db, [row["ghr_id"]], issues=10).get(row["ghr_id"])
-        if d is None:
-            return {
-                "repo": a.full_name,
-                "fetched": False,
-                "top_issues": [],
-                "top_upvoted_issues": [],
-                "help_wanted": None,
-                "help_wanted_count": None,
-                "bounties": None,
-                "bounty_count": None,
-                "note": "no demand data is stored for this repo",
-                "data_coverage": "missing",
-                "sources": ["repos"],
-            }
-        return {
-            "repo": a.full_name,
-            "fetched": True,
-            "top_upvoted_issues": d.get("top_issues") or [],
-            "help_wanted_count": d.get("help_wanted"),
-            "bounty_count": d.get("bounties"),
-            "data_coverage": "complete",
-            "sources": ["repo_demand", "repo_issues"],
-        } | d
-
     def _opportunity(self, a: OpportunityArgs) -> dict:
         base = rq.RepoFilters(languages=[a.language] if a.language else [],
                               topics=[a.topic] if a.topic else [], licensed_only=True)
         found = rq.niches(self.db, base, a.days, a.min_repos, "growth", a.limit)
-        out_niches, unfetched = [], []
+        out_niches = []
         for n in found["niches"]:
             f = base.model_copy(update={"topics": [*base.topics, n["topic"]]})
             top = rq.list_repos(self.db, f, f"gain_{a.days}d", 1, 3)["items"]
             ids = [r["ghr_id"] for r in top]
-            money, demand = rq.money_for(self.db, ids), rq.demand_for(self.db, ids)
+            money = rq.money_for(self.db, ids)
             rising = []
             for r in top:
                 item = {"repo": r["full_name"], "stars": r["stars"],
                         "gain": r[f"gain_{a.days}d"], "description": r["description"]}
                 if r["ghr_id"] in money:
                     item["business_hints"] = money[r["ghr_id"]]["signals"]
-                if r["ghr_id"] in demand:
-                    item["demand"] = demand[r["ghr_id"]]
-                else:
-                    unfetched.append(r["full_name"])
                 rising.append(item)
             out_niches.append({k: n[k] for k in ("topic", "repos", "total_stars", "gain",
                                                   "gain_per_repo", "median_gain", "top_share",
@@ -512,11 +446,9 @@ class Toolbox:
                "how_to_read": "Fast growth with few repos is room to specialise. Business hints "
                               "(hosted_cloud, enterprise, pricing, support_consulting, sponsors) mean "
                               "companies already pay for services around the project: those are your "
-                              "freelance clients. Demand lists what users ask for."}
+                              "freelance clients."}
         if found.get("note"):
             out["note"] = found["note"]
-        if unfetched:
-            out["no_demand_data"] = list(dict.fromkeys(unfetched))[:6]
         return out
 
     def _facets(self, _: NoArgs) -> dict:
@@ -546,9 +478,6 @@ class Toolbox:
     def _get_maintainer_health(self, a: MaintainerHealthArgs) -> dict:
         return get_maintainer_health(self.db, a.full_name, a.months)
 
-    def _classify_issues(self, a: ClassifyIssuesArgs) -> dict:
-        return classify_issues(self.db, a.full_name, a.top_n)
-
     def _get_commercial_landscape(self, a: CommercialLandscapeArgs) -> dict:
         return get_commercial_landscape(self.db, a.full_name, a.category, a.limit)
 
@@ -569,9 +498,6 @@ class Toolbox:
 
     def _evaluate_brief(self, a: EvaluateBriefArgs) -> dict:
         return evaluate_brief(self.db, a.full_name, a.angles, a.brief_claims)
-
-    def _find_oss_alternatives(self, a: FindAlternativesArgs) -> dict:
-        return find_oss_alternatives(self.db, a)
 
 
 def cap(result: dict, max_chars: int = MAX_CHARS) -> dict:

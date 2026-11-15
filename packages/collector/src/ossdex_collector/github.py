@@ -25,10 +25,6 @@ RETRIES = 3
 SEARCH_PAGE = 100
 MIN_SEARCH_PAGE = 25  # GitHub timing out on big pages: halve down to this, then give up
 README_BATCH = 20
-DEMAND_ISSUES = 10
-DEMAND_BATCH = 5  # repos per query: each one adds a search
-# (alias, labels): GitHub's usual ones, plus the label Algora puts on bounty issues
-DEMAND_LABELS = (("hw", ["help wanted"]), ("bt", ["bounty"]), ("al", ["💎 Bounty"]))
 README_FILES = ("README.md", "readme.md", "README.rst", "README")
 
 
@@ -256,44 +252,6 @@ class GitHub:
                 out[ghr_id] = (text, hashlib.sha1(text.encode()).hexdigest()) if text else None
             else:
                 out[ghr_id] = (found["text"], found["oid"])
-        return out
-
-    def issue_demand(self, repos: list[tuple[int, str]]) -> dict[int, dict | None]:
-        """{ghr_id: {help_wanted, bounties, issues}} for each (ghr_id, full_name): how many open
-        issues carry a help-wanted / bounty label and the 10 open issues with the most 👍.
-        None when the repo is gone (or its id no longer matches the name)."""
-        parts = []
-        for i, (_, full_name) in enumerate(repos):
-            owner, name = full_name.split("/", 1)
-            counts = " ".join(
-                f"{key}: issues(states: OPEN, labels: {json.dumps(labels, ensure_ascii=False)}) "
-                f"{{ totalCount }}" for key, labels in DEMAND_LABELS)
-            q = json.dumps(f"repo:{full_name} is:issue is:open sort:reactions-+1-desc")
-            parts.append(
-                f"r{i}: repository(owner: {json.dumps(owner)}, name: {json.dumps(name)}) "
-                f"{{ databaseId {counts} }} "
-                f"s{i}: search(query: {q}, type: ISSUE, first: {DEMAND_ISSUES}) {{ nodes {{ "
-                f"... on Issue {{ number title url createdAt comments {{ totalCount }} "
-                f"reactions(content: THUMBS_UP) {{ totalCount }} "
-                f"labels(first: 5) {{ nodes {{ name }} }} }} }} }}")
-        data = self.graphql("query { " + RATE + " " + " ".join(parts) + " }")
-        out: dict[int, dict | None] = {}
-        for i, (ghr_id, _) in enumerate(repos):
-            node = data.get(f"r{i}")
-            if node is None or node.get("databaseId") != ghr_id:
-                out[ghr_id] = None
-                continue
-            issues = [{
-                "number": n["number"], "title": n["title"], "url": n["url"],
-                "created_at": n["createdAt"], "comments": (n.get("comments") or {}).get("totalCount", 0),
-                "reactions": (n.get("reactions") or {}).get("totalCount", 0),
-                "labels": [x["name"] for x in ((n.get("labels") or {}).get("nodes") or []) if x],
-            } for n in ((data.get(f"s{i}") or {}).get("nodes") or []) if n and n.get("number")]
-            out[ghr_id] = {
-                "help_wanted": node["hw"]["totalCount"],
-                "bounties": node["bt"]["totalCount"] + node["al"]["totalCount"],
-                "issues": issues,
-            }
         return out
 
     def readme_rest(self, full_name: str) -> str | None:

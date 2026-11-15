@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 250" width="760" height="250" font-family="-apple-system,Segoe UI,Helvetica,Arial,sans-serif">
+  <style>
+    .box { fill:#f6f8fa; stroke:#57606a; stroke-width:1.5; }
+    .t { font-size:15px; font-weight:600; fill:#24292f; text-anchor:middle; }
+    .s { font-size:11px; fill:#57606a; text-anchor:middle; }
+    .line { stroke:#8c959f; stroke-width:2; stroke-dasharray:5 5; fill:none; animation:dash 1s linear infinite; }
+    .pulse { animation:pulse 2.4s ease-in-out infinite; transform-box:fill-box; transform-origin:center; }
+    @keyframes dash { to { stroke-dashoffset:-20; } }
+    @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.06); } }
+  </style>
+  <rect width="760" height="250" fill="#ffffff" rx="8"/>
+
+  <rect class="box" x="20" y="95" width="130" height="60" rx="10"/>
+  <text class="t" x="85" y="123">GitHub</text><text class="s" x="85" y="141">public repos</text>
+
+  <rect class="box" x="200" y="95" width="130" height="60" rx="10"/>
+  <text class="t" x="265" y="123">Collector</text><text class="s" x="265" y="141">fetches once a day</text>
+
+  <g class="pulse">
+    <rect class="box" x="380" y="95" width="130" height="60" rx="10" style="fill:#ddf4ff;stroke:#0969da"/>
+    <text class="t" x="445" y="123">ossdex.db</text><text class="s" x="445" y="141">one SQLite file</text>
+  </g>
+
+  <rect class="box" x="560" y="95" width="130" height="60" rx="10"/>
+  <text class="t" x="625" y="123">Server</text><text class="s" x="625" y="141">only reads</text>
+
+  <rect class="box" x="560" y="10" width="130" height="44" rx="10" style="fill:#dafbe1;stroke:#1a7f37"/>
+  <text class="t" x="625" y="37">Web UI</text>
+  <rect class="box" x="560" y="196" width="130" height="44" rx="10" style="fill:#fff8c5;stroke:#9a6700"/>
+  <text class="t" x="625" y="223">Claude / AI (MCP)</text>
+
+  <path class="line" d="M150 125 H200"/>
+  <path class="line" d="M330 125 H380"/>
+  <path class="line" d="M510 125 H560"/>
+  <path class="line" d="M625 95 V54"/>
+  <path class="line" d="M625 155 V196"/>
+
+  <circle r="5" fill="#cf222e"><animateMotion dur="1.6s" repeatCount="indefinite" path="M150 125 H200"/></circle>
+  <circle r="5" fill="#cf222e"><animateMotion dur="1.6s" begin="0.4s" repeatCount="indefinite" path="M330 125 H380"/></circle>
+  <circle r="5" fill="#0969da"><animateMotion dur="1.6s" begin="0.8s" repeatCount="indefinite" path="M510 125 H560"/></circle>
+  <circle r="5" fill="#1a7f37"><animateMotion dur="1.6s" begin="1.2s" repeatCount="indefinite" path="M625 95 V54"/></circle>
+  <circle r="5" fill="#9a6700"><animateMotion dur="1.6s" begin="1.2s" repeatCount="indefinite" path="M625 155 V196"/></circle>
+
+  <text class="s" x="265" y="185">needs a GitHub token</text>
+</svg>

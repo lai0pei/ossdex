@@ -1,4 +1,4 @@
-import type { RepoDetail, AlternativesResponse } from "./types";
+import type { RepoDetail } from "./types";
 import {
   analyzeSingleRepo,
   type SingleRepoAnalysis,
@@ -34,7 +34,7 @@ export const SINGLE_REPO_CATEGORIES = [
   "Learning & 80/20 Mastery",
   "SaaS & Monetization",
   "Architecture & Forking",
-  "Market & Demand",
+  "Market Analysis",
   "Services & Research",
 ] as const;
 
@@ -50,8 +50,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
     toolsUsed: [
       "classify_artifact",
       "get_repo",
-      "classify_issues",
-      "get_demand",
       "get_commercial_landscape",
       "license_audit",
     ],
@@ -59,9 +57,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
       const a = analysis || analyzeSingleRepo(repo);
       const targetUser = draft?.targetUser || "";
       const notes = draft?.notes || "";
-      const demandLine = a.demandHighlight.fetched
-        ? `${a.demandHighlight.bounties} bounties, ${a.demandHighlight.helpWanted} help-wanted tickets`
-        : `Uncollected (run \`ossdex demand ${repo.full_name}\`)`;
 
       return [
         `# Product Idea Articulation & Brainstorming: ${repo.full_name}`,
@@ -72,18 +67,15 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         `- **Anchor Repository**: https://github.com/${repo.full_name} (${(repo.stars || 0).toLocaleString()}★, ${(repo.forks || 0).toLocaleString()} forks)`,
         `- **Language & Topics**: ${repo.language || "Unknown"} · ${(repo.topics || []).slice(0, 6).join(", ") || "None"}`,
         `- **License Claim**: ${repo.license || "None"} (${a.licensePosture.badge})`,
-        `- **Observed Community Demand**: ${demandLine}`,
-        a.demandHighlight.topWish ? `- **Top Community Wish**: "${a.demandHighlight.topWish}"` : "",
         targetUser ? `- **Target Persona Hint**: ${targetUser}` : "",
         notes ? `- **User Inspiration / Focus**: ${notes}` : "",
         "",
         "## Tool-Assisted Discovery Workflow",
-        "Execute the following ossdex MCP diagnostic tools to uncover real capabilities and unmet user pain:",
+        "Execute the following ossdex MCP diagnostic tools to uncover real capabilities and market gaps:",
         `1. Run \`classify_artifact(full_name='${repo.full_name}')\` to determine the artifact kind (app vs library vs framework vs cli vs template) and viable SaaS shapes.`,
         `2. Run \`get_repo(full_name='${repo.full_name}')\` and \`get_readme_section(full_name='${repo.full_name}', query='architecture api installation configuration')\` to inspect capabilities and technical friction.`,
-        `3. Run \`classify_issues(full_name='${repo.full_name}')\` and \`get_demand(full_name='${repo.full_name}')\` to extract real user pain clusters, feature requests, and monetizable complaints.`,
-        `4. Run \`get_commercial_landscape(full_name='${repo.full_name}')\` and \`find_similar(full_name='${repo.full_name}')\` to see what paid products or competitors exist in this niche.`,
-        `5. Run \`license_audit(full_name='${repo.full_name}')\` to ensure that closed/hosted commercialization is permitted.`,
+        `3. Run \`get_commercial_landscape(full_name='${repo.full_name}')\` and \`find_similar(full_name='${repo.full_name}')\` to see what paid products or competitors exist in this niche.`,
+        `4. Run \`license_audit(full_name='${repo.full_name}')\` to ensure that closed/hosted commercialization is permitted.`,
         "",
         "## Required Output Deliverables",
         "Formulate **5 distinct, high-conviction product concepts** (e.g., Turnkey Multi-Tenant SaaS, Managed Cloud API, Vertical Industry Edition, Developer DX/GUI Plugin, Productized Workflow Automation).",
@@ -92,7 +84,7 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         "1. **Product Name & One-Sentence Articulation**: 'An [X] for [Persona Y] that solves [Pain Z] without [Friction W]'.",
         "2. **Feasible Commercial Shape**: Must match the artifact's true nature (e.g. hosted service, API wrapper, IDE plugin, or VPC appliance).",
         "3. **The 80/20 Value Split**: Exactly what this open-source repo provides out-of-the-box (80%) vs. what proprietary value you build on top (20%).",
-        "4. **Grounded Demand Evidence**: Which specific issue cluster, community wish, or README gap proves people will pay for this.",
+        "4. **Grounded Evidence**: Which specific README capability, gap, or commercial precedent shows people will pay for this.",
         "5. **Monetization & Pricing Wedge**: Free tier vs. Entry tier ($29-$99/mo) vs. Enterprise tier ($500+/mo).",
         "6. **14-Day MVP Scope & Kill Test**: The single leanest slice to build and 1 falsifiable test to validate demand in 48 hours.",
       ].filter(Boolean).join("\n");
@@ -111,7 +103,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
       "classify_artifact",
       "get_repo",
       "get_readme_section",
-      "classify_issues",
     ],
     generate: ({ repo, analysis, draft }) => {
       const a = analysis || analyzeSingleRepo(repo);
@@ -129,7 +120,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         "",
         "## Tool-Assisted Investigation",
         `1. Run \`get_repo(full_name='${repo.full_name}')\` and \`get_readme_section(full_name='${repo.full_name}', query='features use-cases examples')\` to review core capabilities.`,
-        `2. Run \`classify_issues(full_name='${repo.full_name}')\` to look for enterprise requests around security, auth, integrations, and compliance.`,
         "",
         "## Output Deliverables",
         "Formulate 4 non-obvious vertical market applications (e.g. FinTech / Wealth Management, Healthcare / BioTech, DevSecOps / Cloud Security, E-Commerce / Retail, LegalTech).",
@@ -157,7 +147,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
       "get_repo",
       "get_readme_section",
       "get_runtime_dependencies",
-      "classify_issues",
     ],
     generate: ({ repo, draft }) => {
       const userBg = draft?.targetUser || draft?.notes ? `\n- **Learner Context / Background**: ${draft?.targetUser || draft?.notes}` : "";
@@ -179,7 +168,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         `1. Run \`classify_artifact(full_name='${repo.full_name}')\` to determine the artifact kind (library, CLI, web app, framework, or template) and deployment profile.`,
         `2. Run \`get_repo(full_name='${repo.full_name}')\` and \`get_readme_section(full_name='${repo.full_name}', query='quickstart installation usage getting-started example api')\` to extract primary entry points and recommended DX.`,
         `3. Run \`get_runtime_dependencies(full_name='${repo.full_name}')\` to check required API keys, cloud backends, database engines, or system tools.`,
-        `4. Run \`classify_issues(full_name='${repo.full_name}')\` to examine common real-world installation and environment friction clusters.`,
         "",
         "## Required Output Deliverables",
         "",
@@ -203,7 +191,7 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         "- **Mins 35–60 (First Custom Modification)**: Modifying a core parameter, writing a small wrapper function, or testing a custom input to prove practical understanding.",
         "",
         "### 5. Top 3 Beginner Pitfalls & Environment Traps",
-        "Based on real GitHub issue patterns (`classify_issues`), highlight the 3 most common stumbling blocks (e.g. missing API keys, Python/Node version conflicts, OS-specific binaries, docker permissions) and provide the exact prevention/fix for each.",
+        "Based on the README and runtime dependencies, highlight the 3 most common stumbling blocks (e.g. missing API keys, Python/Node version conflicts, OS-specific binaries, docker permissions) and provide the exact prevention/fix for each.",
       ].filter(Boolean).join("\n");
     },
   },
@@ -273,7 +261,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
       "classify_growth",
       "analyze_forks",
       "get_package_adoption",
-      "classify_issues",
       "get_commercial_landscape",
       "check_name_collision",
       "license_audit",
@@ -284,9 +271,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
       const a = analysis || analyzeSingleRepo(repo);
       const targetUser = draft?.targetUser || "Technical teams & enterprises";
       const notes = draft?.notes || "Turnkey managed edition with team workspace & SSO";
-      const demandLine = a.demandHighlight.fetched
-        ? `${a.demandHighlight.bounties} bounties, ${a.demandHighlight.helpWanted} help-wanted tickets`
-        : `Uncollected (run \`ossdex demand ${repo.full_name}\`)`;
 
       return [
         `Evaluate the following Product Idea Brief for repository: ${repo.full_name}.`,
@@ -296,7 +280,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         `- **License Claim**: ${repo.license || "None"} (${a.licensePosture.badge})`,
         `- **Proposed Target User**: ${targetUser}`,
         `- **Proposed Commercial Angle**: ${notes}`,
-        `- **Observed Community Demand**: ${demandLine}`,
         "",
         "### Verification Workflow (Preventing F1–F10 Failure Modes)",
         "Please invoke the ossdex MCP diagnostic tools in sequence:",
@@ -308,8 +291,7 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         `6. **F6 (Name Collision)**: Call \`check_name_collision(name='${repo.full_name.split("/")[1]}')\` to spot conflicting repos or trademarks.`,
         `7. **F7 (License Audit)**: Call \`license_audit(full_name='${repo.full_name}')\` to verify system binaries (e.g. ffmpeg), model weights, and reciprocal copyleft gates.`,
         `8. **F8 (Platform Compatibility)**: Call \`platform_compat(full_name='${repo.full_name}')\` to test serverless, GPU, and persistent disk constraints.`,
-        `9. **F9 (Demand Clustering)**: Call \`classify_issues(full_name='${repo.full_name}')\` and \`get_demand(full_name='${repo.full_name}')\` to identify monetizable pain clusters without false-zero assumptions.`,
-        `10. **Composite Synthesis**: Call \`evaluate_brief(full_name='${repo.full_name}', angles=['saas', 'services', 'vertical', 'plugin'])\`.`,
+        `9. **Composite Synthesis**: Call \`evaluate_brief(full_name='${repo.full_name}', angles=['saas', 'services', 'vertical', 'plugin'])\`.`,
         "",
         "### Required Output Deliverables",
         "1. **Signal Verdict**: Clear verdict (`pursue`, `narrow`, or `reject`) with corrected assumptions.",
@@ -367,7 +349,7 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
     badge: "Vertical",
     summary:
       "Specialize this project for an underserved vertical (FinTech, Healthcare, Legal, Cyber) with compliance and prebuilt workflows.",
-    toolsUsed: ["get_repo", "get_demand", "saas_base"],
+    toolsUsed: ["get_repo", "saas_base"],
     generate: ({ repo, analysis, draft }) => {
       const a = analysis || analyzeSingleRepo(repo);
       return [
@@ -379,12 +361,10 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         "",
         "## Market Signals",
         `- **Fork Volume**: ${a.forkRatioPct != null ? `${a.forkRatioPct}% forks to stars ratio` : "N/A"} (${a.deploymentSignal})`,
-        `- **Community Demand**: ${a.demandHighlight.fetched ? `${a.demandHighlight.bounties} bounties, ${a.demandHighlight.helpWanted} help-wanted tickets` : `Uncollected (run \`ossdex demand ${repo.full_name}\`)`}`,
         draft?.notes ? `\n## Context & Domain Specifics\n${draft.notes}\n` : "",
         "## MCP Client Instructions",
         "Use the ossdex MCP server to uncover industry pain points and design a high-ACV vertical SaaS:",
-        `1. Run \`get_demand(full_name="${repo.full_name}")\` to inspect feature requests around compliance, security, audit trails, and data sovereignty.`,
-        `2. Run \`get_repo(full_name="${repo.full_name}")\` to check whether enterprise money signals or integrations already exist.`,
+        `1. Run \`get_repo(full_name="${repo.full_name}")\` to check whether enterprise money signals or integrations already exist.`,
         "",
         "## Output Deliverables",
         "- **Target Vertical Fit**: Specific industry workflows and regulations (HIPAA, GDPR, SOC2, FINRA) addressed.",
@@ -426,37 +406,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         "- **Enterprise Edition (Proprietary / Paid License)**: SSO/SAML 2.0, SCIM provisioning, RBAC & granular permissions, immutable audit logs, team workspaces, multi-region sync.",
         "- **Licensing Model**: Dual-licensing (AGPL + Commercial) vs. Open-Core (Apache 2.0 core + proprietary enterprise extension modules).",
         "- **Pricing Structure**: Developer Free vs. Pro (\$20/seat) vs. Enterprise (\$50+/seat + dedicated support).",
-      ]
-        .filter(Boolean)
-        .join("\n");
-    },
-  },
-
-  {
-    id: "paid-extension",
-    title: "Paid Plugin & Bounty Monetization",
-    category: "SaaS & Monetization",
-    badge: "Extension",
-    summary:
-      "Capitalize on unmet community demand by building a paid connector, plugin, or enterprise integration.",
-    toolsUsed: ["get_demand", "get_repo"],
-    generate: ({ repo, analysis, draft }) => {
-      const a = analysis || analyzeSingleRepo(repo);
-      return [
-        `# Product Strategy: Paid Plugin & Commercial Extension for ${repo.full_name}`,
-        `**Base Repository**: https://github.com/${repo.full_name} (${repo.stars?.toLocaleString() ?? 0}★)`,
-        `**Unmet Demand Signals**: ${a.demandHighlight.fetched ? `${a.demandHighlight.bounties} bounties, ${a.demandHighlight.helpWanted} help-wanted tickets` : `Uncollected (run \`ossdex demand ${repo.full_name}\`)`}`,
-        a.demandHighlight.topWish ? `**Top Requested Community Feature**: "${a.demandHighlight.topWish}"` : "",
-        draft?.notes ? `\n## User Notes\n${draft.notes}\n` : "",
-        "## MCP Client Instructions",
-        `1. Run \`get_demand(full_name="${repo.full_name}")\` to inspect the top-upvoted feature requests and issues with reactions and comments.`,
-        `2. Run \`get_repo(full_name="${repo.full_name}")\` to see if an official marketplace or plugin architecture exists.`,
-        "",
-        "## Output Deliverables",
-        "- **Highest-ROI Extension Idea**: The single most requested plugin/connector based on verified community demand.",
-        "- **Integration Architecture**: How the extension hooks into the base project without maintaining a fork.",
-        "- **Distribution & Monetization**: One-time license key vs. monthly subscription vs. marketplace revenue share.",
-        "- **Validation Plan**: How to reach out directly to the issue upvoters and bounty posters with an MVP preview.",
       ]
         .filter(Boolean)
         .join("\n");
@@ -528,41 +477,11 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
     },
   },
 
-  // Category: Market & Demand
-  {
-    id: "demand-roadmap",
-    title: "Unmet Demand & Pain-Point MVP",
-    category: "Market & Demand",
-    badge: "MVP Wedge",
-    summary:
-      "Mine community upvotes, feature requests, and complaints to define a sharp 30-day MVP product roadmap.",
-    toolsUsed: ["get_demand", "get_repo"],
-    generate: ({ repo, analysis, draft }) => {
-      const a = analysis || analyzeSingleRepo(repo);
-      return [
-        `# Product Roadmap: Unmet Demand & Pain-Point MVP for ${repo.full_name}`,
-        `**Base Repository**: https://github.com/${repo.full_name} (${repo.stars?.toLocaleString() ?? 0}★, ${repo.open_issues?.toLocaleString() ?? 0} open issues)`,
-        `**Top Community Wish**: ${a.demandHighlight.topWish || "See demand issues"}`,
-        `**Bounties & Help Wanted**: ${a.demandHighlight.fetched ? `${a.demandHighlight.bounties} bounties, ${a.demandHighlight.helpWanted} help-wanted tickets` : `Uncollected (run \`ossdex demand ${repo.full_name}\`)`}`,
-        draft?.notes ? `\n## User Notes\n${draft.notes}\n` : "",
-        "## MCP Client Instructions",
-        `1. Execute \`get_demand(full_name="${repo.full_name}")\` to inspect the top issues ranked by user reactions and comments.`,
-        `2. Execute \`get_repo(full_name="${repo.full_name}")\` to check recent commit cadence and issue triage responsiveness.`,
-        "",
-        "## Output Deliverables",
-        "- **Top 3 Core User Frustrations**: What real users complain about most frequently in the issue tracker.",
-        "- **30-Day MVP Scope**: The leanest standalone product or wrapper that solves these top 3 frustrations.",
-        "- **User Feedback Loop**: How to contact the users who reported or upvoted these issues to recruit design partners.",
-      ]
-        .filter(Boolean)
-        .join("\n");
-    },
-  },
-
+  // Category: Market Analysis
   {
     id: "competitive-moat",
     title: "Competitive Matrix & Positioning Wedge",
-    category: "Market & Demand",
+    category: "Market Analysis",
     badge: "Moat",
     summary:
       "Benchmark against closest open-source competitors and commercial incumbents to find an underserved positioning gap.",
@@ -601,7 +520,7 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
     badge: "Services",
     summary:
       "Package high-ticket implementation, migration, and 24/7 SLA support retainers for enterprises deploying this project.",
-    toolsUsed: ["get_repo", "get_demand"],
+    toolsUsed: ["get_repo"],
     generate: ({ repo, analysis, draft }) => {
       const a = analysis || analyzeSingleRepo(repo);
       return [
@@ -612,7 +531,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
         draft?.notes ? `\n## Notes\n${draft.notes}\n` : "",
         "## MCP Client Instructions",
         `1. Run \`get_repo(full_name="${repo.full_name}")\` to inspect commercial signals, funding, and enterprise adoption.`,
-        `2. Run \`get_demand(full_name="${repo.full_name}")\` to identify common deployment hurdles and help-wanted tickets.`,
         "",
         "## Output Deliverables",
         "- **Tier 1: Turnkey Deployment Package (\$3,000 - \$7,500 one-off)**: Hardened deployment, SSO configuration, custom branding, and automated backups.",
@@ -658,152 +576,6 @@ export const SINGLE_REPO_PROMPTS: PromptTemplate<SingleRepoPromptContext>[] = [
       ]
         .filter(Boolean)
         .join("\n");
-    },
-  },
-];
-
-// -------------------------------------------------------------
-// Alternatives & Workflow Prompts (3 Prompts)
-// -------------------------------------------------------------
-
-export interface AlternativePromptContext {
-  paidProduct: string;
-  category?: string;
-  os?: string;
-  habits: string[];
-  installedTools: string[];
-  alternatives: AlternativesResponse["alternatives"];
-  articulationGuide?: AlternativesResponse["articulation_guide"];
-  userNotes?: string;
-}
-
-export const ALTERNATIVE_CATEGORIES = [
-  "All",
-  "Migration & Replacement",
-  "Habit & Toolchain Fit",
-  "Full Workflow Audit",
-] as const;
-
-export const ALTERNATIVE_PROMPTS: PromptTemplate<AlternativePromptContext>[] = [
-  {
-    id: "personal-migration-advisor",
-    title: "Personal OSS Alternative & 15-Minute Migration Advisor",
-    category: "Migration & Replacement",
-    badge: "Personal Migration",
-    summary:
-      "Deep-dive recommendation and migration path to replace this paid product with the best open-source software matching your local OS and habits.",
-    toolsUsed: ["find_oss_alternatives", "compare_repos", "get_readme_section"],
-    generate: ({ paidProduct, category, os, habits, installedTools, alternatives, articulationGuide, userNotes }) => {
-      const osName = os ? os.toUpperCase() : "Current OS";
-      const habitStr = habits.length > 0 ? habits.join(", ") : "Standard workflow";
-      const topPick = articulationGuide?.best_overall_pick || alternatives[0]?.full_name || "Top alternative";
-      const topCandidates = alternatives.slice(0, 4);
-
-      return [
-        `# Open-Source Alternative & Personal Migration Plan: ${paidProduct}`,
-        `Act as an Elite Open-Source Software Architect and Workstation Engineer.`,
-        `Your mission: Help me replace commercial/paid product **${paidProduct}** with the best, most suited open-source software for my exact local machine and habits.`,
-        "",
-        "## My Local Environment & Workflow Context",
-        `- **Operating System**: ${osName}`,
-        category ? `- **Commercial Category**: ${category}` : "",
-        installedTools.length > 0
-          ? `- **Installed Workflow Tools**: ${installedTools.slice(0, 10).join(", ")}`
-          : "",
-        `- **My Habits & Preferences**: ${habitStr}`,
-        userNotes ? `- **Specific Requirements / Notes**: ${userNotes}` : "",
-        "",
-        "## Top Scored Open-Source Candidates from ossdex",
-        `- **#1 Best Match**: ${topPick}`,
-        ...topCandidates.map(
-          (c) =>
-            `- **${c.full_name}** (${(c.stars || 0).toLocaleString()}★, ${c.fit_score}% fit, badge: "${c.fit_badge}"): ` +
-            `Form factor: ${c.form_factor}. Tailored install: \`${c.tailored_install_command || "N/A"}\``,
-        ),
-        "",
-        "## Tool-Assisted Investigation Instructions",
-        `1. Ask me which package managers and CLI tools I have installed, unless listed above.`,
-        `2. Run \`find_oss_alternatives(paid_product="${paidProduct}")\` to inspect full candidate rankings and fit evidence.`,
-        `3. For the top 2-3 finalists, run \`get_readme_section\` and \`compare_repos\` to inspect features and configuration.`,
-        "",
-        "## Required Output Deliverables",
-        `1. **Executive Verdict & #1 Recommendation**: Why **${topPick}** is the sharpest fit for my ${osName} setup and ${habitStr} habits.`,
-        "2. **Habit & Workflow Synergy Breakdown**: How the top picks connect with my installed tools (e.g. Vim bindings, Docker container, local files, terminal multiplexer).",
-        "3. **Honest Feature Parity & Trade-offs**: What features from the paid product are missing or require extra setup, and how to bridge the gap.",
-        "4. **Exact Tailored Install & Setup Commands**: Copy-paste terminal commands matching my package manager.",
-        "5. **15-Minute Migration Guide**: Step-by-step instructions to export data from the commercial product, import it into the open-source alternative, and verify it works.",
-      ].filter(Boolean).join("\n");
-    },
-  },
-
-  {
-    id: "habit-shootout",
-    title: "Habit & Keybinding Head-to-Head Shootout",
-    category: "Habit & Toolchain Fit",
-    badge: "Habit Shootout",
-    summary:
-      "Compare the top open-source finalists specifically against your daily habits, modal/Vim bindings, offline privacy, and local toolchain.",
-    toolsUsed: ["find_oss_alternatives", "compare_repos", "get_readme_section"],
-    generate: ({ paidProduct, os, habits, installedTools, alternatives, userNotes }) => {
-      const finalists = alternatives.slice(0, 3).map((a) => a.full_name);
-      return [
-        `# Open-Source Habit & Workflow Shootout for ${paidProduct}`,
-        `Act as a Staff Developer Tools Specialist.`,
-        `Benchmark the top open-source alternatives to **${paidProduct}** specifically through the lens of my daily working habits.`,
-        "",
-        "## My Daily Habits",
-        `- **Habits**: ${habits.join(", ") || "CLI-first, lightweight"}`,
-        `- **OS**: ${os?.toUpperCase() || "Desktop OS"}`,
-        installedTools.length > 0 ? `- **Core Tools**: ${installedTools.join(", ")}` : "",
-        userNotes ? `- **User Notes**: ${userNotes}` : "",
-        "",
-        "## Finalists to Compare",
-        finalists.map((f) => `- ${f}`).join("\n"),
-        "",
-        "## MCP Instructions",
-        `1. Run \`compare_repos(full_names=[${finalists.map((f) => `"${f}"`).join(", ")}])\` to inspect activity, velocity, and maintenance.`,
-        `2. Run \`get_readme_section\` on each finalist for keybindings, shortcuts, and configuration.`,
-        "",
-        "## Output Deliverables",
-        "- **Speed & Latency**: Startup time, UI responsiveness, and resource footprint.",
-        "- **Keyboard & Navigation Ergonomics**: Full keyboard accessibility, modal/Vim navigation, and command palette support.",
-        "- **Local Data Ownership**: Plaintext/SQLite vs proprietary SQLite vs remote cloud storage.",
-        "- **Clear Winner**: The single best tool for my daily muscle memory.",
-      ].filter(Boolean).join("\n");
-    },
-  },
-
-  {
-    id: "workflow-replacement-audit",
-    title: "Full Local Workflow & Subscription Replacement Audit",
-    category: "Full Workflow Audit",
-    badge: "Workflow Audit",
-    summary:
-      "Audit all detected commercial subscriptions and craft a cohesive, open-source workstation ecosystem.",
-    toolsUsed: ["find_oss_alternatives", "compose_product_stack"],
-    generate: ({ os, habits, userNotes }) => {
-
-      return [
-        `# Full Workstation Open-Source Subscription Replacement Audit`,
-        `Act as a Chief Workstation Architect and Open-Source Strategist.`,
-        `Audit my current workstation software and design a cohesive, self-sufficient open-source software stack that eliminates recurring SaaS fees.`,
-        "",
-        "## My Commercial Software",
-        "Ask me which paid apps and subscriptions I use today, unless I list them under Personal Focus.",
-        "",
-        "## My Environment & Habits",
-        `- **OS**: ${os?.toUpperCase() || "Current OS"}`,
-        `- **Habit Profile**: ${habits.join(", ") || "Productive developer"}`,
-        userNotes ? `- **Personal Focus**: ${userNotes}` : "",
-        "",
-        "## MCP Client Instructions",
-        "1. For each paid app I name, run `find_oss_alternatives(paid_product=..., os=..., habits=[...])` to fetch replacement options.",
-        "",
-        "## Output Deliverables",
-        "- **Subscription Replacement Roadmap**: For each proprietary tool, the top open-source replacement with monthly cost savings ($/mo).",
-        "- **Cohesive Toolchain Integration**: How these replacements talk to each other (e.g. shared markdown files, local git repos, Docker containers).",
-        "- **Zero-Regret Transition Plan**: Priority order of migration (easiest 1-day swaps first -> high-data migrations last).",
-      ].filter(Boolean).join("\n");
     },
   },
 ];
