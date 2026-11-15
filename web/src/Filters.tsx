@@ -9,10 +9,9 @@ import {
   IconChevronDown,
   IconCode,
   IconFileText,
-  IconLayoutGrid,
-  IconLayoutList,
   IconReset,
   IconShieldCheck,
+  IconSliders,
   IconSort,
   IconSparkles,
   IconX,
@@ -37,6 +36,12 @@ export const SORTS: [string, string][] = [
   ["created", "Newest"],
   ["oldest", "Oldest"],
   ["forks", "Most forks"],
+];
+
+const GAIN_WINDOWS: [string, string, string][] = [
+  ["1", "Day", "1d (daily)"],
+  ["7", "Week", "7d (weekly)"],
+  ["30", "Month", "30d (monthly)"],
 ];
 
 function PopoverFilter(props: {
@@ -118,9 +123,9 @@ function FacetMenu(props: {
                 className={isSel ? "selected" : ""}
                 onClick={() => toggle(f.value)}
               >
-                <span className="facet-name">
+                <span className="facet-name" title={f.value}>
                   {showColorDot && <span className="lang-dot" style={{ backgroundColor: langColor(f.value) }} />}
-                  {f.value}
+                  <span className="facet-text">{f.value}</span>
                 </span>
                 <span className="count">{isSel ? "✓" : f.count.toLocaleString()}</span>
               </button>
@@ -145,24 +150,322 @@ function rangeText(min: string, max: string): string {
   return lo && hi ? `${lo} – ${hi}` : lo || hi;
 }
 
+/** "1,500", "1.5k" or "2m" → "1500"; anything else → "". */
+function parseCount(text: string): string {
+  const m = text.trim().toLowerCase().replace(/[,_\s]/g, "").match(/^(\d+(?:\.\d+)?)([km]?)$/);
+  if (!m) return "";
+  return String(Math.round(Number(m[1]) * (m[2] === "k" ? 1e3 : m[2] === "m" ? 1e6 : 1)));
+}
+
+/** Number box that applies on blur or Enter, so typing doesn't refetch on every keystroke. */
+function CountInput(props: { value: string; placeholder: string; label: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(props.value);
+  useEffect(() => setDraft(props.value), [props.value]);
+  const commit = () => {
+    const v = parseCount(draft);
+    setDraft(v);
+    if (v !== props.value) props.onCommit(v);
+  };
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      className="adv-input"
+      aria-label={props.label}
+      placeholder={props.placeholder}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commit();
+      }}
+    />
+  );
+}
+
+function RangeField(props: {
+  label: string;
+  min: string;
+  max: string;
+  presets?: number[];
+  onChange: (min: string, max: string) => void;
+}) {
+  const { label, min, max } = props;
+  const commit = (lo: string, hi: string) => {
+    if (lo && hi && Number(lo) > Number(hi)) [lo, hi] = [hi, lo];
+    props.onChange(lo, hi);
+  };
+  return (
+    <div className="adv-field">
+      <span className="adv-label">{label}</span>
+      <div className="adv-range">
+        <CountInput value={min} placeholder="Min" label={`Minimum ${label.toLowerCase()}`} onCommit={(v) => commit(v, max)} />
+        <span className="adv-dash" aria-hidden="true">–</span>
+        <CountInput value={max} placeholder="Max" label={`Maximum ${label.toLowerCase()}`} onCommit={(v) => commit(min, v)} />
+      </div>
+      {props.presets && (
+        <div className="preset-grid">
+          {props.presets.map((p) => {
+            const on = min === String(p) && !max;
+            return (
+              <button
+                key={p}
+                type="button"
+                className={`preset-btn ${on ? "active" : ""}`}
+                onClick={() => commit(on ? "" : String(p), "")}
+              >
+                {p >= 1000 ? `${p / 1000}k` : p}+
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DateField(props: { label: string; value: string; onChange: (v: string) => void; quick: [string, number][] }) {
+  return (
+    <div className="adv-field">
+      <span className="adv-label">{props.label}</span>
+      <input
+        type="date"
+        className="adv-input"
+        aria-label={props.label}
+        value={props.value}
+        max={daysAgo(0)}
+        onChange={(e) => props.onChange(e.target.value)}
+      />
+      <div className="adv-quick">
+        {props.quick.map(([text, days]) => {
+          const on = props.value === daysAgo(days);
+          return (
+            <button
+              key={text}
+              type="button"
+              className={`preset-btn ${on ? "active" : ""}`}
+              onClick={() => props.onChange(on ? "" : daysAgo(days))}
+            >
+              {text}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Toggle(props: { label: string; hint: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={props.checked}
+      className={`adv-toggle ${props.checked ? "on" : ""}`}
+      onClick={() => props.onChange(!props.checked)}
+    >
+      <span className="adv-toggle-text">
+        <span className="adv-toggle-label">{props.label}</span>
+        <span className="adv-toggle-hint">{props.hint}</span>
+      </span>
+      <span className="adv-switch" aria-hidden="true" />
+    </button>
+  );
+}
+
+function AdvancedPanel(props: {
+  state: ListState;
+  facets: { topics: Facet[]; lists?: Facet[]; money?: Facet[] } | undefined;
+  onChange: Patch;
+  unlicensedKept?: boolean;
+  activeCount: number;
+  resultCount?: number;
+  onClose: () => void;
+}) {
+  const { state: s, facets, onChange } = props;
+  return (
+    <>
+      <div className="adv-backdrop" onClick={props.onClose} />
+      <div className="adv-panel" role="region" aria-label="Advanced filters">
+        <div className="popover-mobile-head">
+          <span className="popover-mobile-title">Advanced filters</span>
+          <button type="button" className="popover-mobile-close" onClick={props.onClose} aria-label="Close advanced filters">
+            <IconX size={15} />
+          </button>
+        </div>
+
+        <div className="adv-grid">
+          <fieldset className="adv-section">
+            <legend>Popularity</legend>
+            <RangeField
+              label="Stars"
+              min={s.min_stars}
+              max={s.max_stars}
+              presets={[100, 1000, 10000, 50000]}
+              onChange={(min_stars, max_stars) => onChange({ min_stars, max_stars })}
+            />
+            <RangeField
+              label="Forks"
+              min={s.min_forks}
+              max={s.max_forks}
+              onChange={(min_forks, max_forks) => onChange({ min_forks, max_forks })}
+            />
+          </fieldset>
+
+          <fieldset className="adv-section">
+            <legend>Momentum</legend>
+            <div className="adv-field">
+              <span className="adv-label">Gained at least</span>
+              <div className="adv-range">
+                <CountInput
+                  value={s.min_gain}
+                  placeholder="e.g. 50"
+                  label="Minimum stars gained"
+                  onCommit={(min_gain) => onChange({ min_gain })}
+                />
+                <span className="adv-unit">stars per</span>
+              </div>
+              <div className="segmented" role="radiogroup" aria-label="Gain window">
+                {GAIN_WINDOWS.map(([days, label]) => (
+                  <button
+                    key={days}
+                    type="button"
+                    role="radio"
+                    aria-checked={s.gain_days === days}
+                    className={`seg-btn ${s.gain_days === days ? "active" : ""}`}
+                    onClick={() => onChange({ gain_days: days })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span className="adv-hint">Rising repos. Needs a few days of collected star history.</span>
+            </div>
+          </fieldset>
+
+          <fieldset className="adv-section">
+            <legend>Activity</legend>
+            <DateField
+              label="Updated after"
+              value={s.pushed_after}
+              quick={[["30 days", 30], ["6 months", 182], ["1 year", 365]]}
+              onChange={(pushed_after) => onChange({ pushed_after })}
+            />
+            <DateField
+              label="Created after"
+              value={s.created_after}
+              quick={[["90 days", 90], ["1 year", 365], ["3 years", 1095]]}
+              onChange={(created_after) => onChange({ created_after })}
+            />
+            <DateField
+              label="Not updated since"
+              value={s.pushed_before}
+              quick={[["1 year", 365], ["2 years", 730]]}
+              onChange={(pushed_before) => onChange({ pushed_before })}
+            />
+          </fieldset>
+
+          <fieldset className="adv-section">
+            <legend>Quality</legend>
+            <Toggle
+              label="Has a README"
+              hint="Skip repos with no documentation"
+              checked={s.with_readme}
+              onChange={(with_readme) => onChange({ with_readme })}
+            />
+            <Toggle
+              label="Cites a research paper"
+              hint="README links to an arXiv paper"
+              checked={s.mentions_paper}
+              onChange={(mentions_paper) => onChange({ mentions_paper })}
+            />
+            {props.unlicensedKept && (
+              <Toggle
+                label="Licensed only"
+                hint="Hide repos with no license"
+                checked={s.licensed_only}
+                onChange={(licensed_only) => onChange({ licensed_only })}
+              />
+            )}
+          </fieldset>
+
+          {facets?.topics && facets.topics.length > 0 && (
+            <fieldset className="adv-section">
+              <legend>Topics</legend>
+              <FacetMenu
+                title="Topics"
+                items={facets.topics}
+                selected={s.topics}
+                onChange={(topics) => onChange({ topics })}
+              />
+            </fieldset>
+          )}
+
+          {facets?.lists && facets.lists.length > 0 && (
+            <fieldset className="adv-section">
+              <legend><IconAward size={12} /> Curated lists</legend>
+              <FacetMenu
+                title="Awesome lists"
+                items={facets.lists}
+                selected={s.in_lists}
+                onChange={(in_lists) => onChange({ in_lists })}
+              />
+            </fieldset>
+          )}
+
+          {facets?.money && facets.money.length > 0 && (
+            <fieldset className="adv-section">
+              <legend><IconSparkles size={12} /> Business signals</legend>
+              <FacetMenu
+                title="Business signals"
+                items={facets.money}
+                selected={s.money}
+                onChange={(money) => onChange({ money })}
+              />
+            </fieldset>
+          )}
+        </div>
+
+        <div className="adv-foot">
+          <button
+            type="button"
+            className="reset-btn"
+            disabled={props.activeCount === 0}
+            onClick={() => onChange({
+              min_stars: "", max_stars: "", min_forks: "", max_forks: "", min_gain: "",
+              pushed_after: "", pushed_before: "", created_after: "",
+              with_readme: false, mentions_paper: false, licensed_only: false,
+              topics: [], in_lists: [], money: [],
+            })}
+          >
+            <IconReset size={12} />
+            <span>Clear advanced</span>
+          </button>
+          <button type="button" className="btn adv-done" onClick={props.onClose}>
+            {props.resultCount != null ? `Show ${props.resultCount.toLocaleString()} repos` : "Done"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function Filters(props: {
   state: ListState;
   facets: { languages: Facet[]; topics: Facet[]; licenses: Facet[]; lists?: Facet[]; money?: Facet[] } | undefined;
   onChange: Patch;
   unlicensedKept?: boolean;
   savedRepos?: string[];
-  cardDensity?: "comfortable" | "compact";
-  onToggleCardDensity?: () => void;
+  resultCount?: number;
 }) {
   const {
     state: s,
     facets,
     onChange,
     savedRepos = [],
-    cardDensity = "comfortable",
-    onToggleCardDensity,
   } = props;
   const [openId, setOpenId] = useState<string | null>(null);
+  const [advOpen, setAdvOpen] = useState(false);
   const barRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -172,23 +475,32 @@ export default function Filters(props: {
         setOpenId(null);
       }
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpenId(null);
-    };
     document.addEventListener("mousedown", onDocClick);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("mousedown", onDocClick);
   }, [openId]);
+
+  useEffect(() => {
+    if (!openId && !advOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpenId(null);
+        setAdvOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openId, advOpen]);
 
   const hasStars = Boolean(s.min_stars || s.max_stars);
   const hasForks = Boolean(s.min_forks || s.max_forks);
   const licenseCount = s.licenses.length + s.license_kinds.length;
+  const advancedCount =
+    [hasStars, hasForks, s.min_gain, s.pushed_after, s.pushed_before, s.created_after, s.with_readme, s.mentions_paper, s.licensed_only]
+      .filter(Boolean).length + s.topics.length + s.in_lists.length + s.money.length;
   const isShowingSaved = savedRepos.length > 0 && s.names.length === savedRepos.length && savedRepos.every((r) => s.names.includes(r));
   const searching = s.q.trim() !== "";
   const currentSort = s.sort || (searching ? "relevance" : "stars");
+  const gainWindow = GAIN_WINDOWS.find(([d]) => d === s.gain_days)?.[2] ?? "1d (daily)";
 
   const chips: { key: string; label: string; dot?: string; clear: () => void }[] = [
     ...(s.names.length > 0
@@ -226,7 +538,7 @@ export default function Filters(props: {
       ? [{ key: "forks", label: `Forks ${rangeText(s.min_forks, s.max_forks)}`, clear: () => onChange({ min_forks: "", max_forks: "" }) }]
       : []),
     ...(s.min_gain
-      ? [{ key: "gain", label: `+${Number(s.min_gain).toLocaleString()} ★ / ${s.gain_days === "7" || s.sort === "gain_7d" ? "7d (weekly)" : "1d (daily)"}`, clear: () => onChange({ min_gain: "" }) }]
+      ? [{ key: "gain", label: `+${Number(s.min_gain).toLocaleString()} ★ / ${gainWindow}`, clear: () => onChange({ min_gain: "" }) }]
       : []),
     ...s.in_lists.map((l) => ({
       key: `list:${l}`,
@@ -240,6 +552,9 @@ export default function Filters(props: {
     })),
     ...(s.mentions_paper
       ? [{ key: "paper", label: "Mentions a paper", clear: () => onChange({ mentions_paper: false }) }]
+      : []),
+    ...(s.with_readme
+      ? [{ key: "readme", label: "Has a README", clear: () => onChange({ with_readme: false }) }]
       : []),
     ...(s.licensed_only
       ? [{ key: "licensed", label: "Licensed only", clear: () => onChange({ licensed_only: false }) }]
@@ -264,9 +579,9 @@ export default function Filters(props: {
   };
 
   return (
-    <section className="top-filters" ref={barRef} aria-label="Filters">
+    <section className={`top-filters ${openId || advOpen ? "sheet-open" : ""}`} ref={barRef} aria-label="Filters">
       <div className="filter-bar-row">
-        {/* Horizontally scrollable filter rail on mobile */}
+        {/* Simple filters: horizontally scrollable rail on mobile */}
         <div className="filter-pills-scroll">
           <PopoverFilter
             id="lang"
@@ -328,42 +643,6 @@ export default function Filters(props: {
             </div>
           </PopoverFilter>
 
-          {facets?.lists && facets.lists.length > 0 && (
-            <PopoverFilter
-              id="lists"
-              openId={openId}
-              setOpenId={setOpenId}
-              icon={<IconAward size={13} />}
-              label="Curated Lists"
-              activeCount={s.in_lists.length}
-            >
-              <FacetMenu
-                title="Awesome List"
-                items={facets.lists}
-                selected={s.in_lists}
-                onChange={(in_lists) => onChange({ in_lists })}
-              />
-            </PopoverFilter>
-          )}
-
-          {facets?.money && facets.money.length > 0 && (
-            <PopoverFilter
-              id="money"
-              openId={openId}
-              setOpenId={setOpenId}
-              icon={<IconSparkles size={13} />}
-              label="Business"
-              activeCount={s.money.length}
-            >
-              <FacetMenu
-                title="Companies already pay for…"
-                items={facets.money.map((m) => ({ ...m, value: m.value }))}
-                selected={s.money}
-                onChange={(money) => onChange({ money })}
-              />
-            </PopoverFilter>
-          )}
-
           {savedRepos.length > 0 && (
             <button
               type="button"
@@ -381,21 +660,6 @@ export default function Filters(props: {
           <div className="inline-lenses">
             <button
               type="button"
-              className={`preset-pill ${s.license_kinds.includes("permissive") && s.pushed_after === daysAgo(30) ? "active" : ""}`}
-              onClick={() => {
-                const isActive = s.license_kinds.includes("permissive") && s.pushed_after === daysAgo(30);
-                onChange({
-                  license_kinds: isActive ? [] : ["permissive"],
-                  pushed_after: isActive ? "" : daysAgo(30),
-                });
-              }}
-              title="Permissive license (MIT/Apache/BSD) and updated within 30 days"
-            >
-              <IconShieldCheck size={12} />
-              <span>SaaS-Safe</span>
-            </button>
-            <button
-              type="button"
               className={`preset-pill ${s.mentions_paper ? "active" : ""}`}
               onClick={() => onChange({ mentions_paper: !s.mentions_paper })}
               title="Repositories whose README cites an arXiv research paper"
@@ -406,20 +670,22 @@ export default function Filters(props: {
           </div>
         </div>
 
-        {/* View & Sort Controls Group */}
+        {/* Advanced, View & Sort Controls Group: always visible, also on mobile */}
         <div className="filter-controls-group">
-          {onToggleCardDensity && (
-            <button
-              type="button"
-              className="card-density-toggle-btn"
-              onClick={onToggleCardDensity}
-              title={cardDensity === "comfortable" ? "Switch to compact cards view" : "Switch to comfortable cards view"}
-              aria-label={cardDensity === "comfortable" ? "Switch to compact cards view" : "Switch to comfortable cards view"}
-            >
-              {cardDensity === "comfortable" ? <IconLayoutList size={13} /> : <IconLayoutGrid size={13} />}
-              <span className="density-label">{cardDensity === "comfortable" ? "Comfortable" : "Compact"}</span>
-            </button>
-          )}
+          <button
+            type="button"
+            className={`filter-pill adv-trigger ${advOpen ? "open" : ""} ${advancedCount > 0 ? "active" : ""}`}
+            aria-expanded={advOpen}
+            onClick={() => {
+              setOpenId(null);
+              setAdvOpen((o) => !o);
+            }}
+          >
+            <IconSliders size={13} />
+            <span>Advanced</span>
+            {advancedCount > 0 && <span className="pill-badge">{advancedCount}</span>}
+            <IconChevronDown size={12} className="chev" />
+          </button>
 
           {/* Sort Dropdown */}
           <div className="filter-sort-wrap">
@@ -457,6 +723,18 @@ export default function Filters(props: {
           )}
         </div>
       </div>
+
+      {advOpen && (
+        <AdvancedPanel
+          state={s}
+          facets={facets}
+          onChange={onChange}
+          unlicensedKept={props.unlicensedKept}
+          activeCount={advancedCount}
+          resultCount={props.resultCount}
+          onClose={() => setAdvOpen(false)}
+        />
+      )}
 
       {active && (
         <div className="active-chips-row">

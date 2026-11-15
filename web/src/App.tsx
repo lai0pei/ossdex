@@ -34,10 +34,6 @@ export default function App() {
       return [];
     }
   });
-  const [cardDensity, setCardDensity] = useState<"comfortable" | "compact">(() => {
-    const saved = localStorage.getItem("ossdex.cardDensity");
-    return saved === "compact" ? "compact" : "comfortable";
-  });
   const [showGuide, setShowGuide] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -45,14 +41,6 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("ossdex.theme", theme); } catch { /* ignore */ }
   }, [theme]);
-
-  const toggleCardDensity = useCallback(() => {
-    setCardDensity((prev) => {
-      const next = prev === "comfortable" ? "compact" : "comfortable";
-      try { localStorage.setItem("ossdex.cardDensity", next); } catch { /* ignore */ }
-      return next;
-    });
-  }, []);
 
   // Only auto-focus search on desktop devices with a fine pointer (avoid popping mobile virtual keyboard on load)
   useEffect(() => {
@@ -205,10 +193,10 @@ export default function App() {
               type="button"
               className="btn-link guide-topbar-btn"
               onClick={() => setShowGuide(true)}
-              title="User Guide & Desktop MCP Setup (Press ?)"
+              title="Guide: connect ossdex to Claude, ChatGPT or Gemini (press ?)"
             >
               <IconBookOpen size={13} />
-              <span>Guide & MCP</span>
+              <span>Guide</span>
             </button>
             <button
               className="icon-btn"
@@ -233,8 +221,7 @@ export default function App() {
               onChange={update}
               unlicensedKept={st ? !st.require_license : false}
               savedRepos={savedRepos}
-              cardDensity={cardDensity}
-              onToggleCardDensity={toggleCardDensity}
+              resultCount={repos.data?.total}
             />
 
             <RepoList
@@ -246,7 +233,6 @@ export default function App() {
               onChange={update}
               savedRepos={savedRepos}
               onToggleSaved={toggleSaved}
-              cardDensity={cardDensity}
             />
           </main>
         </section>
@@ -264,44 +250,22 @@ export default function App() {
             </div>
           }
         >
-          {(() => {
-            const repoItems = repos.data?.items ?? [];
-            const curIdx = repoItems.findIndex((r) => r.full_name.toLowerCase() === state.repo.toLowerCase());
-            const prevRepo = curIdx > 0 ? repoItems[curIdx - 1].full_name : null;
-            const nextRepo = curIdx >= 0 && curIdx < repoItems.length - 1 ? repoItems[curIdx + 1].full_name : null;
-
-            return (
-              <RepoDrawer
-                name={state.repo}
-                onClose={() => update({ repo: "" }, false)}
-                onOpenRepo={openRepo}
-                onPrevRepo={prevRepo ? () => openRepo(prevRepo) : undefined}
-                onNextRepo={nextRepo ? () => openRepo(nextRepo) : undefined}
-                hasPrev={Boolean(prevRepo)}
-                hasNext={Boolean(nextRepo)}
-                onFilterMoney={(m) => update({ money: [...new Set([...state.money, m])] })}
-                onFilterList={(list) => update({ in_lists: [...new Set([...state.in_lists, list])] })}
-                onFilterTopic={(topic) => update({ topics: [...new Set([...state.topics, topic])] })}
-                onFilterLanguage={(lang) => update({ languages: [lang] })}
-                isSaved={savedRepos.includes(state.repo)}
-                onToggleSaved={toggleSaved}
-              />
-            );
-          })()}
+          <RepoDrawer
+            name={state.repo}
+            onClose={() => update({ repo: "" }, false)}
+            onOpenRepo={openRepo}
+            onFilterMoney={(m) => update({ money: [...new Set([...state.money, m])] })}
+            onFilterList={(list) => update({ in_lists: [...new Set([...state.in_lists, list])] })}
+            onFilterTopic={(topic) => update({ topics: [...new Set([...state.topics, topic])] })}
+            onFilterLanguage={(lang) => update({ languages: [lang] })}
+            isSaved={savedRepos.includes(state.repo)}
+            onToggleSaved={toggleSaved}
+          />
         </Suspense>
       )}
 
       {/* Interactive Guide & MCP Setup Modal */}
-      <GuideModal
-        isOpen={showGuide}
-        onClose={() => setShowGuide(false)}
-        onApplyQuickFilter={(patch) => {
-          const updates: any = {};
-          if (patch.saasSafe !== undefined) updates.licensed_only = patch.saasSafe;
-          if (patch.money) updates.money = patch.money;
-          update(updates, false);
-        }}
-      />
+      <GuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
     </div>
   );
 }

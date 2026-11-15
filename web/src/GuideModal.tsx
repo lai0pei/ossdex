@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   IconBookOpen,
   IconCheck,
@@ -12,7 +12,6 @@ import {
 interface GuideModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onApplyQuickFilter?: (patch: { saasSafe?: boolean; money?: string[] }) => void;
 }
 
 function CopyCodeBlock({ text, title }: { text: string; title?: string }) {
@@ -59,13 +58,104 @@ function CopyCodeBlock({ text, title }: { text: string; title?: string }) {
   );
 }
 
+
+/** A one-line suggestion with its own copy button, for questions to paste into Claude. */
+function CopyChip({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="guide-try"
+      onClick={() =>
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+      }
+      title="Click to copy"
+    >
+      <span>{text}</span>
+      <span className="guide-try-copy">
+        {copied ? <IconCheck size={11} /> : <IconCopy size={11} />}
+        {copied ? "Copied" : "Copy"}
+      </span>
+    </button>
+  );
+}
+
+function Step({ n, title, children }: { n: number; title: string; children?: ReactNode }) {
+  return (
+    <li className="guide-step">
+      <span className="guide-step-n">{n}</span>
+      <div className="guide-step-body">
+        <h4>{title}</h4>
+        {children}
+      </div>
+    </li>
+  );
+}
+
+/** A button-styled link that opens an app's settings page in a new tab. */
+function OpenLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a className="guide-open-link" href={href} target="_blank" rel="noopener noreferrer">
+      {label} ↗
+    </a>
+  );
+}
+
+type AppId = "claude" | "chatgpt" | "gemini";
+
+// Menu names follow each vendor's help pages as of late 2026; the notes cover plan and account limits.
+const APPS: { id: AppId; name: string; note: string }[] = [
+  {
+    id: "claude",
+    name: "Claude",
+    note:
+      "On a Team or Enterprise plan only an owner can add connectors: they add ossdex in Organization settings → " +
+      "Connectors, then you click Connect. The Free plan allows one custom connector.",
+  },
+  {
+    id: "chatgpt",
+    name: "ChatGPT",
+    note:
+      "Custom MCP servers depend on your plan. If Plugins has no \"Add custom MCP server\", turn on Settings → " +
+      "Apps → Advanced settings → Developer mode, then click Create app and paste the same link. On a Business " +
+      "workspace only an admin can add it.",
+  },
+  {
+    id: "gemini",
+    name: "Gemini",
+    note:
+      "Custom apps need a personal Google account (not work or school), age 18+ in the US, Gemini in English, " +
+      "and Keep Activity turned on. They can only be added in the web app.",
+  },
+];
+
+const STARTER_QUESTIONS = [
+  "Use ossdex to find fast-growing open-source projects I could build a business on",
+  "Use ossdex to find the best open-source alternatives to Notion and compare them",
+  "Use ossdex: which open-source AI projects gained the most stars this week?",
+];
+
+const CAN_DO: { ask: string; tool: string }[] = [
+  { ask: "Find projects for an idea or a keyword", tool: "search_repos" },
+  { ask: "See what is trending this week", tool: "get_rising" },
+  { ask: "Compare 2 to 6 projects side by side", tool: "compare_repos" },
+  { ask: "Spot fast-growing niches", tool: "find_niches · opportunity_report" },
+  { ask: "Check if you may sell it (license check)", tool: "license_audit" },
+  { ask: "Check if it is still maintained", tool: "get_maintainer_health" },
+  { ask: "See who already sells it as a product", tool: "get_commercial_landscape" },
+  { ask: "Stress-test your product idea", tool: "evaluate_brief" },
+];
+
 export default function GuideModal({
   isOpen,
   onClose,
-  onApplyQuickFilter,
 }: GuideModalProps) {
-  const [activeTab, setActiveTab] = useState<"desktop-mcp" | "playbook" | "reference">("desktop-mcp");
-  const [desktopPlatform, setDesktopPlatform] = useState<"claude" | "gemini" | "chatgpt">("claude");
+  const [activeTab, setActiveTab] = useState<"connect" | "site" | "can-do">("connect");
+  const [app, setApp] = useState<AppId>("claude");
+  const [devPlatform, setDevPlatform] = useState<"claude" | "gemini" | "chatgpt">("claude");
 
   // The MCP endpoint is served by the same process as this page, so its URL is this origin + /mcp.
   const mcpUrl = `${window.location.origin}/mcp`;
@@ -104,6 +194,8 @@ export default function GuideModal({
 
   const codexCli = `codex mcp add ossdex --url ${mcpUrl}`;
   const mcpInspector = "npx @modelcontextprotocol/inspector";
+  const claudeConfigCmd = "uv run --package ossdex-server ossdex-server claude-config --install";
+
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -112,7 +204,7 @@ export default function GuideModal({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="ossdex User & MCP Guide"
+        aria-label="ossdex Guide"
       >
         <header className="modal-header">
           <div className="modal-title-wrap">
@@ -120,10 +212,8 @@ export default function GuideModal({
               <IconBookOpen size={16} />
             </span>
             <div className="modal-title-text">
-              <h2>User Guide & Desktop MCP Setup</h2>
-              <span className="muted small">
-                Connect ossdex to Claude, Gemini, and ChatGPT · Maximize product discovery in the web app
-              </span>
+              <h2>Guide</h2>
+              <span className="muted small">Add ossdex to Claude, ChatGPT or Gemini with one link</span>
             </div>
           </div>
           <button className="icon-btn" onClick={onClose} title="Close guide (Esc)" aria-label="Close guide">
@@ -131,329 +221,406 @@ export default function GuideModal({
           </button>
         </header>
 
-        {/* Guide Navigation Tabs */}
         <div className="guide-nav-bar">
           <div className="guide-nav-tabs">
             <button
               type="button"
-              className={`guide-nav-tab ${activeTab === "desktop-mcp" ? "active" : ""}`}
-              onClick={() => setActiveTab("desktop-mcp")}
+              className={`guide-nav-tab ${activeTab === "connect" ? "active" : ""}`}
+              onClick={() => setActiveTab("connect")}
             >
               <IconCode size={13} />
-              <span>1. Connect Desktop MCP (Claude, Gemini, ChatGPT)</span>
+              <span>Connect your AI</span>
             </button>
             <button
               type="button"
-              className={`guide-nav-tab ${activeTab === "playbook" ? "active" : ""}`}
-              onClick={() => setActiveTab("playbook")}
+              className={`guide-nav-tab ${activeTab === "site" ? "active" : ""}`}
+              onClick={() => setActiveTab("site")}
             >
               <IconSparkles size={13} />
-              <span>2. Web App Mastery Playbook</span>
+              <span>Using this site</span>
             </button>
             <button
               type="button"
-              className={`guide-nav-tab ${activeTab === "reference" ? "active" : ""}`}
-              onClick={() => setActiveTab("reference")}
+              className={`guide-nav-tab ${activeTab === "can-do" ? "active" : ""}`}
+              onClick={() => setActiveTab("can-do")}
             >
               <IconFileText size={13} />
-              <span>3. MCP Tools & Prompts Reference</span>
+              <span>What you can ask</span>
             </button>
           </div>
         </div>
 
         <div className="modal-body guide-modal-body">
-          {/* TAB 1: DESKTOP MCP CONNECTIVITY */}
-          {activeTab === "desktop-mcp" && (
+          {/* TAB 1: CONNECT YOUR AI APP, STEP BY STEP */}
+          {activeTab === "connect" && (
             <div className="guide-section-content">
               <div className="guide-intro-banner">
                 <p>
-                  <strong>ossdex</strong> provides a Model Context Protocol (MCP) server exposing 24 tools and
-                  13 prompts over Streamable HTTP, from the same server as this page. It never calls GitHub or
-                  third-party LLMs while answering, and it never looks at the machine it runs on. Every client below
-                  connects to this URL:
+                  Connect ossdex to your AI app and it can search, compare and analyse thousands of open-source
+                  projects for you, right in the chat. It only reads ossdex's own data, and no account is needed.
                 </p>
-                <CopyCodeBlock text={mcpUrl} title="MCP Server URL" />
-                {isLocal && (
-                  <p className="muted small">
-                    This is a local server: keep <code>ossdex-server serve</code> running while you use it. Cloud-hosted
-                    connectors (claude.ai, ChatGPT) cannot reach <code>localhost</code>; give them the public
-                    URL of a hosted ossdex instead.
-                  </p>
-                )}
               </div>
 
-              {/* Platform Selector */}
-              <div className="platform-tabs">
-                <button
-                  type="button"
-                  className={`platform-btn ${desktopPlatform === "claude" ? "active" : ""}`}
-                  onClick={() => setDesktopPlatform("claude")}
-                >
-                  <span className="platform-icon">🟣</span>
-                  <span>Claude Desktop & Claude Code</span>
-                </button>
-                <button
-                  type="button"
-                  className={`platform-btn ${desktopPlatform === "gemini" ? "active" : ""}`}
-                  onClick={() => setDesktopPlatform("gemini")}
-                >
-                  <span className="platform-icon">🔵</span>
-                  <span>Gemini CLI & Antigravity</span>
-                </button>
-                <button
-                  type="button"
-                  className={`platform-btn ${desktopPlatform === "chatgpt" ? "active" : ""}`}
-                  onClick={() => setDesktopPlatform("chatgpt")}
-                >
-                  <span className="platform-icon">🟢</span>
-                  <span>ChatGPT Desktop & Codex</span>
-                </button>
+              <div className="platform-tabs guide-app-picker" role="tablist" aria-label="Your AI app">
+                {APPS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={app === a.id}
+                    className={`platform-btn ${app === a.id ? "active" : ""}`}
+                    onClick={() => setApp(a.id)}
+                  >
+                    <span>{a.name}</span>
+                  </button>
+                ))}
               </div>
 
-              {/* CLAUDE PLATFORM */}
-              {desktopPlatform === "claude" && (
-                <div className="platform-guide-pane">
-                  <h3>🟣 Claude Desktop & Claude Code</h3>
-                  <p className="muted small">
-                    Claude has native Model Context Protocol support for both the desktop app and the terminal agent.
-                  </p>
-
-                  <div className="guide-card">
-                    <h4>Option A: Claude Code (CLI)</h4>
-                    <p className="small">Run this single terminal command to connect ossdex to Claude Code:</p>
-                    <CopyCodeBlock text={claudeCodeCli} title="Terminal Command" />
-                  </div>
-
-                  <div className="guide-card">
-                    <h4>Option B: Claude Desktop Application</h4>
-                    {!isLocal && (
-                      <p className="small">
-                        In <strong>Settings → Connectors → Add custom connector</strong>, name it <code>ossdex</code> and
-                        paste the URL above. This also makes it available on claude.ai and the mobile app.
-                      </p>
-                    )}
-                    <p className="small">
-                      {isLocal ? "Add" : "Or add"} ossdex to your Claude Desktop configuration file (needs Node.js for{" "}
-                      <code>mcp-remote</code>, which connects the app to the HTTP endpoint):
-                      <br />
-                      <span className="font-mono muted small">
-                        macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
-                        <br />
-                        Windows: %APPDATA%\Claude\claude_desktop_config.json
-                      </span>
-                    </p>
-                    <CopyCodeBlock text={claudeDesktopConfig} title="claude_desktop_config.json" />
-                    <ol className="guide-steps-list small">
-                      <li>Save the configuration file and restart Claude Desktop.</li>
-                      <li>
-                        Look for the <strong>hammer (🔨)</strong> icon in the chat input bar showing connected tools
-                        (e.g. <code>search_repos</code>, <code>compare_repos</code>, <code>find_niches</code>).
-                      </li>
-                      <li>
-                        Type <code>/</code> or click the attachment menu to run prebuilt prompts like{" "}
-                        <code>saas_base</code>, <code>vertical_saas_idea</code>, or <code>compose_product_stack</code>.
-                      </li>
-                    </ol>
-                  </div>
-                </div>
-              )}
-
-              {/* GEMINI PLATFORM */}
-              {desktopPlatform === "gemini" && (
-                <div className="platform-guide-pane">
-                  <h3>🔵 Google Gemini CLI & Antigravity</h3>
-                  <p className="muted small">
-                    Connect ossdex tools directly to the Gemini CLI agent or Antigravity developer workspace.
-                  </p>
-
-                  <div className="guide-card">
-                    <h4>Option A: Gemini CLI</h4>
-                    <p className="small">Register the tool server directly using the Gemini CLI:</p>
-                    <CopyCodeBlock text={geminiCli} title="Terminal Command" />
-                  </div>
-
-                  <div className="guide-card">
-                    <h4>Option B: Gemini Settings File</h4>
-                    <p className="small">
-                      Or add it by hand to <code>~/.gemini/settings.json</code> (<code>httpUrl</code> selects Streamable HTTP):
-                    </p>
-                    <CopyCodeBlock text={geminiSettings} title="settings.json" />
-                  </div>
-
-                  <div className="guide-card">
-                    <h4>Option C: Antigravity</h4>
-                    <p className="small">
-                      Open <strong>Manage MCP servers → View raw config</strong> and add this to <code>mcp_config.json</code>{" "}
-                      (Antigravity reads remote servers from <code>serverUrl</code>):
-                    </p>
-                    <CopyCodeBlock text={antigravityConfig} title="mcp_config.json" />
+              <ol className="guide-steps">
+                <Step n={1} title="Copy your ossdex link">
+                  <CopyCodeBlock text={mcpUrl} title="Your ossdex link" />
+                  {isLocal && (
                     <p className="muted small">
-                      Once added, ask Gemini or Antigravity:{" "}
-                      <em>"Search ossdex for high-velocity permissive vector search engines and compare the top 3."</em>
+                      This is a local address. AI apps connect over the internet, so use the link from the public
+                      ossdex site instead.
                     </p>
-                  </div>
-                </div>
-              )}
+                  )}
+                </Step>
 
-              {/* CHATGPT PLATFORM */}
-              {desktopPlatform === "chatgpt" && (
-                <div className="platform-guide-pane">
-                  <h3>🟢 ChatGPT Desktop & OpenAI Codex</h3>
+                {app === "claude" && (
+                  <>
+                    <Step n={2} title="Open Claude's Connectors page">
+                      <OpenLink href="https://claude.ai/customize/connectors" label="Open Claude connectors" />
+                      <p className="small">
+                        Or in Claude Desktop: <strong>Customize → Connectors</strong> (older versions:{" "}
+                        <strong>Settings → Connectors</strong>). Connectors belong to your account, so one added on the
+                        web also shows up in Claude Desktop and on your phone.
+                      </p>
+                    </Step>
+                    <Step n={3} title='Click "+ Add", then "Add custom connector"'>
+                      <p className="small">
+                        Name it <code>ossdex</code>, paste the link and click <strong>Continue</strong>. When asked
+                        about signing in, choose <strong>No sign in</strong>, then click <strong>Add</strong>.
+                      </p>
+                    </Step>
+                    <Step n={4} title="Switch ossdex on in a new chat">
+                      <p className="small">
+                        Start a new chat, click <strong>+</strong> at the bottom left of the message box, choose{" "}
+                        <strong>Connectors</strong> and turn <strong>ossdex</strong> on.
+                      </p>
+                    </Step>
+                  </>
+                )}
+
+                {app === "chatgpt" && (
+                  <>
+                    <Step n={2} title="Open ChatGPT's Plugins page">
+                      <OpenLink href="https://chatgpt.com/plugins" label="Open ChatGPT plugins" />
+                    </Step>
+                    <Step n={3} title='Click "+", then "Add custom MCP server"'>
+                      <p className="small">
+                        Name it <code>ossdex</code> and paste the link under <strong>Connection</strong>. Set
+                        authentication to <strong>No authentication</strong>, tick{" "}
+                        <strong>I understand and want to continue</strong>, click{" "}
+                        <strong>Create as a plugin</strong>, then install it.
+                      </p>
+                    </Step>
+                    <Step n={4} title="Pick ossdex in a new chat">
+                      <p className="small">
+                        Start a new chat, type <strong>@</strong> in the message box and choose{" "}
+                        <strong>ossdex</strong>.
+                      </p>
+                    </Step>
+                  </>
+                )}
+
+                {app === "gemini" && (
+                  <>
+                    <Step n={2} title="Open Gemini's Connected Apps on a computer">
+                      <OpenLink href="https://gemini.google.com" label="Open Gemini" />
+                      <p className="small">
+                        At the bottom left click <strong>Settings → Connected Apps</strong> (if it's not there:{" "}
+                        <strong>Personal Intelligence → Connected Apps</strong>).
+                      </p>
+                    </Step>
+                    <Step n={3} title='Under "Custom apps", click "Add a custom app"'>
+                      <p className="small">
+                        Paste the link, click <strong>Next</strong> and follow the screens. Once added, it works in the
+                        Gemini phone app too.
+                      </p>
+                    </Step>
+                    <Step n={4} title="Pick ossdex in a new chat">
+                      <p className="small">
+                        Start a new chat, type <strong>@</strong> in the message box and choose{" "}
+                        <strong>ossdex</strong>.
+                      </p>
+                    </Step>
+                  </>
+                )}
+
+                <Step n={5} title="Ask a question that names ossdex">
+                  <p className="small">Click a question to copy it, then paste it into the chat:</p>
+                  <div className="guide-try-list">
+                    {STARTER_QUESTIONS.map((q) => (
+                      <CopyChip key={q} text={q} />
+                    ))}
+                  </div>
                   <p className="muted small">
-                    Use the ChatGPT connector, the Codex CLI, or the instant zero-setup Prompt Library workflow.
+                    Starting with <strong>"Use ossdex…"</strong> makes the AI look it up instead of answering from
+                    memory. If it asks permission to use ossdex, choose <strong>Always allow</strong>: ossdex only reads
+                    its own data.
                   </p>
+                </Step>
+              </ol>
 
-                  <div className="guide-card">
-                    <h4>Method 1: Zero-Setup Prompt Library Workflow (Recommended & Instant)</h4>
-                    <p className="small">
-                      You don't need any local connectors or MCP configuration to get full value from ChatGPT:
-                    </p>
-                    <ol className="guide-steps-list small">
-                      <li>Open any repository card in this web app.</li>
-                      <li>
-                        Select your preferred lens in the <strong>MCP Prompt Library</strong> (e.g. <em>Managed Cloud SaaS Wrapper</em>).
-                      </li>
-                      <li>Click <strong>Copy</strong> and paste directly into ChatGPT Desktop or web.</li>
-                      <li>ChatGPT will immediately analyze the validated architecture with all signals pre-loaded.</li>
-                    </ol>
+              <div className="guide-card guide-app-note">
+                <h4>Can't find the add button?</h4>
+                <p className="small">{APPS.find((a) => a.id === app)?.note}</p>
+              </div>
+
+              <details className="guide-fold">
+                <summary>Something not working?</summary>
+                <ul className="guide-bullet-list small">
+                  <li>
+                    <strong>The AI answered without ossdex?</strong> Check that ossdex is switched on or picked (step
+                    4) and start your question with "Use ossdex to…".
+                  </li>
+                  <li>
+                    <strong>Error when adding the link?</strong> Paste the full link, starting with{" "}
+                    <code>https://</code> and ending in <code>/mcp</code>. If it still fails, the owner of the site needs
+                    to finish its setup (see the developer notes below).
+                  </li>
+                  <li>
+                    <strong>Menus look different?</strong> These apps move their settings often. Look for{" "}
+                    <strong>Connectors</strong>, <strong>Plugins</strong> or <strong>Connected apps</strong>, or update
+                    the app.
+                  </li>
+                </ul>
+              </details>
+
+              <div className="guide-card">
+                <h4>No setup at all: copy a prompt</h4>
+                <p className="small">
+                  Open any project card, find the <strong>MCP Prompt Library</strong>, click <strong>Copy Prompt</strong>
+                  and paste it into any chat app (Claude, ChatGPT, Gemini). The project's facts come with it.
+                </p>
+              </div>
+
+              <details className="guide-fold">
+                <summary>For developers: other apps and manual setup</summary>
+                <div className="guide-fold-body">
+                  <p className="small">
+                    ossdex serves MCP over Streamable HTTP, from the same server as this page. Every client connects to
+                    this URL:
+                  </p>
+                  <CopyCodeBlock text={mcpUrl} title="MCP Server URL" />
+                  <p className="muted small">
+                    Site owners: a public server must set <code>OSSDEX_PUBLIC_HOST=&lt;your-domain&gt;</code>, or{" "}
+                    <code>/mcp</code> answers "Invalid Host" and the connector cannot be added.
+                  </p>
+                  {isLocal && (
+                    <>
+                      <h4>Running ossdex on your own computer?</h4>
+                      <p className="muted small">
+                        Cloud connectors cannot reach <code>localhost</code>. To use this local copy in Claude Desktop,
+                        run this in a new terminal tab, then fully quit and reopen Claude:
+                      </p>
+                      <CopyCodeBlock text={claudeConfigCmd} title="Terminal command" />
+                    </>
+                  )}
+
+                  <div className="platform-tabs">
+                    <button
+                      type="button"
+                      className={`platform-btn ${devPlatform === "claude" ? "active" : ""}`}
+                      onClick={() => setDevPlatform("claude")}
+                    >
+                      <span>Claude Code & JSON</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`platform-btn ${devPlatform === "gemini" ? "active" : ""}`}
+                      onClick={() => setDevPlatform("gemini")}
+                    >
+                      <span>Gemini CLI & Antigravity</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`platform-btn ${devPlatform === "chatgpt" ? "active" : ""}`}
+                      onClick={() => setDevPlatform("chatgpt")}
+                    >
+                      <span>Codex CLI</span>
+                    </button>
                   </div>
 
-                  <div className="guide-card">
-                    <h4>Method 2: ChatGPT Connector (Streamable HTTP)</h4>
-                    <p className="small">
-                      ChatGPT connects from OpenAI's servers, so it needs a public <code>https://</code> URL
-                      {isLocal ? " (a hosted ossdex, not this local one)" : " like the one above"}. With developer mode on, go to{" "}
-                      <strong>Settings → Connectors → Create</strong>:
-                    </p>
-                    <ul className="guide-steps-list small">
-                      <li>Name: <code>ossdex</code></li>
-                      <li>MCP Server URL: <code>{isLocal ? "https://ossdex.<your-domain>/mcp" : mcpUrl}</code></li>
-                      <li>Authentication: <strong>No authentication</strong></li>
-                    </ul>
-                  </div>
+                  {devPlatform === "claude" && (
+                    <div className="platform-guide-pane">
+                      <div className="guide-card">
+                        <h4>Claude Code (CLI)</h4>
+                        <CopyCodeBlock text={claudeCodeCli} title="Terminal command" />
+                      </div>
+                      <div className="guide-card">
+                        <h4>Claude Desktop config file (needs Node.js)</h4>
+                        <p className="small">
+                          <code>mcp-remote</code> bridges the app's config file to the HTTP endpoint. Merge this into{" "}
+                          <code>mcpServers</code>, then fully quit and reopen Claude:
+                          <br />
+                          <span className="font-mono muted small">
+                            macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+                            <br />
+                            Windows: %APPDATA%\Claude\claude_desktop_config.json
+                          </span>
+                        </p>
+                        <CopyCodeBlock text={claudeDesktopConfig} title="claude_desktop_config.json" />
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="guide-card">
-                    <h4>Method 3: OpenAI Codex CLI (Streamable HTTP)</h4>
-                    <CopyCodeBlock text={codexCli} title="Codex Terminal Command" />
+                  {devPlatform === "gemini" && (
+                    <div className="platform-guide-pane">
+                      <div className="guide-card">
+                        <h4>Gemini CLI</h4>
+                        <CopyCodeBlock text={geminiCli} title="Terminal command" />
+                        <p className="small">
+                          Or add it by hand to <code>~/.gemini/settings.json</code> (<code>httpUrl</code> selects
+                          Streamable HTTP):
+                        </p>
+                        <CopyCodeBlock text={geminiSettings} title="settings.json" />
+                      </div>
+                      <div className="guide-card">
+                        <h4>Antigravity</h4>
+                        <p className="small">
+                          Open <strong>Manage MCP servers → View raw config</strong> and add this to{" "}
+                          <code>mcp_config.json</code> (remote servers use <code>serverUrl</code>):
+                        </p>
+                        <CopyCodeBlock text={antigravityConfig} title="mcp_config.json" />
+                      </div>
+                    </div>
+                  )}
+
+                  {devPlatform === "chatgpt" && (
+                    <div className="platform-guide-pane">
+                      <div className="guide-card">
+                        <h4>OpenAI Codex CLI</h4>
+                        <CopyCodeBlock text={codexCli} title="Terminal command" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="guide-card inspector-card">
+                    <h4>Test the server</h4>
+                    <p className="small">
+                      Try every tool and prompt in the official MCP Inspector. Choose the{" "}
+                      <strong>Streamable HTTP</strong> transport and paste the URL above:
+                    </p>
+                    <CopyCodeBlock text={mcpInspector} title="Run MCP Inspector" />
                   </div>
                 </div>
-              )}
-
-              {/* Verification & Inspector */}
-              <div className="guide-card inspector-card">
-                <h4>🛠️ Test & Verify Your MCP Server</h4>
-                <p className="small">
-                  You can inspect and test all 24 tools and 13 prompts in your browser using the official MCP Inspector.
-                  Choose the <strong>Streamable HTTP</strong> transport and paste the URL above:
-                </p>
-                <CopyCodeBlock text={mcpInspector} title="Run MCP Inspector" />
-              </div>
+              </details>
             </div>
           )}
 
-          {/* TAB 2: WEB APP MASTERY PLAYBOOK */}
-          {activeTab === "playbook" && (
+          {/* TAB 2: USING THIS SITE */}
+          {activeTab === "site" && (
             <div className="guide-section-content">
               <div className="guide-intro-banner">
                 <p>
-                  <strong>The 3-Stage Product Ideation Loop</strong>: How to move systematically from a filtered shortlist
-                  down to validated single-repo architectures.
+                  <strong>From a long list to one good idea in three steps.</strong> Narrow the list, check one project
+                  closely, then ask Claude.
                 </p>
               </div>
 
               <div className="playbook-steps-container">
-                {/* Stage 1 */}
                 <div className="playbook-step-card">
-                  <div className="step-badge">Stage 1</div>
+                  <div className="step-badge">Step 1</div>
                   <div className="step-body">
-                    <h4>Opportunity Filtering</h4>
-                    <p className="small">
-                      Use the filter bar to narrow the catalog to projects with commercial precedent:
-                    </p>
+                    <h4>Narrow the list</h4>
+                    <p className="small">Use the filter bar above the cards. A good starting point:</p>
                     <ul className="guide-bullet-list small">
                       <li>
-                        <strong>Fast-Track Filter</strong>: Combine <code>SaaS-Safe</code> + <code>Business</code> to isolate repos
-                        companies are already paying for.
+                        <strong>Companies already pay for it</strong>: choose <code>License → Permissive</code> and
+                        <code> Advanced → Business signals</code>.
                       </li>
                     </ul>
-                    {onApplyQuickFilter && (
-                      <button
-                        type="button"
-                        className="btn small-btn"
-                        style={{ marginTop: 8 }}
-                        onClick={() => {
-                          onApplyQuickFilter({ saasSafe: true, money: ["hosted_cloud", "enterprise"] });
-                          onClose();
-                        }}
-                      >
-                        <IconSparkles size={12} />
-                        <span>Apply SaaS-Safe + Business Filter</span>
-                      </button>
-                    )}
                   </div>
                 </div>
 
-                {/* Stage 2 */}
                 <div className="playbook-step-card">
-                  <div className="step-badge">Stage 2</div>
+                  <div className="step-badge">Step 2</div>
                   <div className="step-body">
-                    <div className="step-head">
-                      <h4>Single-Project Commercial Signal Auditing</h4>
-                    </div>
-                    <p className="small">
-                      Click any repository card to open the large inspector modal. Read these 4 critical signals:
-                    </p>
+                    <h4>Open a project and read the signals</h4>
+                    <p className="small">Click any card to open the details. Three things matter most:</p>
                     <div className="signal-cheatsheet-grid">
                       <div className="cheatsheet-item">
-                        <strong>Fork Ratio ≥ 12%</strong>
-                        <span>Signals active enterprise self-hosting. Companies already spend hours customizing it.</span>
+                        <strong>Fork ratio of 12% or more</strong>
+                        <span>Companies are running and customising it themselves.</span>
                       </div>
                       <div className="cheatsheet-item">
-                        <strong>License Posture</strong>
+                        <strong>License</strong>
                         <span>
-                          <em>Permissive</em> (MIT/Apache 2.0) = closed SaaS safe.
+                          <em>Permissive</em> (MIT, Apache 2.0): safe to sell in a closed product.
                           <br />
-                          <em>Weak Copyleft</em> = library modifications must be open.
+                          <em>Weak copyleft</em>: changes to the library itself must be shared.
                           <br />
-                          <em>AGPL</em> = requires clean-room API microservice boundary.
+                          <em>AGPL</em>: keep it behind a separate service, or get a lawyer's advice.
                         </span>
                       </div>
                       <div className="cheatsheet-item">
                         <strong>MCP Prompt Library</strong>
-                        <span>Choose from 10 specialized lenses (e.g. <em>Vertical SaaS</em>, <em>Managed Cloud</em>, <em>White-Label Audit</em>) and copy in 1 click.</span>
+                        <span>Pick a lens (e.g. <em>Vertical SaaS</em>, <em>White-Label Audit</em>) and copy it in 1 click.</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Stage 3 */}
                 <div className="playbook-step-card">
-                  <div className="step-badge">Stage 3</div>
+                  <div className="step-badge">Step 3</div>
                   <div className="step-body">
-                    <h4>Deepening Data with the CLI</h4>
+                    <h4>Ask your AI</h4>
                     <p className="small">
-                      Supercharge the web app and MCP tools by keeping star history and new repos fresh:
+                      Paste the copied prompt into any chat, or connect Claude, ChatGPT or Gemini (first tab) and just
+                      ask in your own words.
                     </p>
-                    <CopyCodeBlock
-                      text={`# Daily update (refreshes star gains and new repos):\nuv run --package ossdex-collector ossdex-collector update`}
-                      title="Terminal Commands"
-                    />
                   </div>
                 </div>
               </div>
+
+              <details className="guide-fold">
+                <summary>For developers: keep the data fresh</summary>
+                <div className="guide-fold-body">
+                  <CopyCodeBlock
+                    text={`# Daily update (refreshes star gains and new repos):\nuv run --package ossdex-collector ossdex-collector update`}
+                    title="Terminal commands"
+                  />
+                </div>
+              </details>
             </div>
           )}
 
-          {/* TAB 3: MCP TOOLS & PROMPTS REFERENCE */}
-          {activeTab === "reference" && (
+          {/* TAB 3: WHAT CLAUDE CAN DO */}
+          {activeTab === "can-do" && (
             <div className="guide-section-content">
-              <h3>🛠️ 25 Built-in MCP Tools</h3>
+              <div className="guide-intro-banner">
+                <p>Once connected, ask Claude in plain words. Behind the scenes it picks the right ossdex tool:</p>
+              </div>
+
+              <ul className="guide-can-do">
+                {CAN_DO.map((c) => (
+                  <li key={c.tool}>
+                    <span>{c.ask}</span>
+                    <code>{c.tool}</code>
+                  </li>
+                ))}
+              </ul>
               <p className="muted small">
-                Every tool follows strict repo-agnostic conventions: closed-set enums, null preservation for missing metrics,
-                evidence chains, and standardized envelopes (<code>as_of</code>, <code>data_coverage</code>, <code>sources</code>).
+                There are also ready-made prompts (idea brainstorming, learning plans, moat analysis). In Claude, click{" "}
+                <strong>+</strong> in the chat box and look under ossdex.
               </p>
 
-              <h4 style={{ marginTop: 16 }}>Search, Discovery & Sizing (12 Tools)</h4>
+              <details className="guide-fold">
+                <summary>Full tool and prompt reference</summary>
+                <div className="guide-fold-body">
+              <h4 style={{ marginTop: 16 }}>Search, Discovery & Sizing (11 tools)</h4>
               <div className="guide-table-wrap">
                 <table className="guide-table">
                   <thead>
@@ -523,7 +690,7 @@ export default function GuideModal({
                 </table>
               </div>
 
-              <h4 style={{ marginTop: 24 }}>Diagnostic & Brief Evaluation Tools (14 Tools, F1–F10 Guardrails)</h4>
+              <h4 style={{ marginTop: 24 }}>Diagnostic & Brief Evaluation (13 tools, F1–F10 guardrails)</h4>
               <div className="guide-table-wrap">
                 <table className="guide-table">
                   <thead>
@@ -603,7 +770,7 @@ export default function GuideModal({
                 </table>
               </div>
 
-              <h3 style={{ marginTop: 28 }}>✨ 13 Pre-Engineered Prompts</h3>
+              <h3 style={{ marginTop: 28 }}>13 ready-made prompts</h3>
               <p className="muted small">Invokable in Claude, Gemini, ChatGPT Desktop, or via the web app's Prompt Library:</p>
 
               <div className="guide-table-wrap">
@@ -684,6 +851,8 @@ export default function GuideModal({
                   </tbody>
                 </table>
               </div>
+                </div>
+              </details>
             </div>
           )}
         </div>

@@ -217,7 +217,8 @@ class Toolbox:
                  "keywords (README text, names, topics, descriptions). Use for questions like 'AI projects based on langchain' or "
                  "'tools for running llms locally'. Results are ranked repos with description, "
                  "stars, forks, recent star gains and a README snippet. Add language/topics "
-                 "filters to narrow (license_kinds, min_forks...). Follow up with get_repo for details.",
+                 "filters to narrow (license_kinds, min_forks...). Use it whenever the user asks to find or "
+                 "recommend open-source projects. Follow up with get_repo for details.",
                  SearchReposArgs, self._search_repos),
             Tool("list_repos",
                  "List repos by structured filters and sort, with no text query: 'top Go repos by "

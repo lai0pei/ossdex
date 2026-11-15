@@ -88,6 +88,7 @@ All of these start with `ossdex-collector`. Server commands:
 |---|---|
 | `ossdex-server serve [--workers N]` | website + API + MCP on port 8200 |
 | `ossdex-server mcp [--transport stdio\|sse\|streamable-http]` | MCP only (stdio by default, for local clients) |
+| `ossdex-server claude-config [--install]` | connect Claude Desktop to this computer's ossdex (adds it to Claude's config file, keeps your other servers, saves a `.bak`) |
 
 `--budget P` stops a run after P GraphQL points (GitHub allows 5,000 per hour), so one run never uses
 your whole quota.
@@ -109,8 +110,9 @@ Cloud apps (claude.ai, ChatGPT) cannot reach `127.0.0.1`, so they need the hoste
   ```sh
   claude mcp add --transport http ossdex http://127.0.0.1:8200/mcp
   ```
-- **claude.ai / Claude Desktop (hosted URL):** Settings → Connectors → Add custom connector. Name `ossdex`, URL `https://ossdex.<your-domain>/mcp`, no authentication.
-- **Claude Desktop (local server):** the config file can only start local programs, so bridge with `mcp-remote` (needs Node.js). Add this to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows), then restart:
+- **claude.ai / Claude Desktop (hosted URL), the way most people connect:** claude.ai/customize/connectors (in Claude Desktop: Customize → Connectors) → **+ Add** → **Add custom connector**. Name `ossdex`, URL `https://ossdex.<your-domain>/mcp`, No sign in. Nothing to install. On Team or Enterprise plans an owner adds it under Organization settings → Connectors. Then in a chat open **+** → Connectors and switch ossdex on and start a question with "Use ossdex to…". The in-app **Guide** walks through this. The server must run with `OSSDEX_PUBLIC_HOST=<your-domain>`.
+- **Claude Desktop, developer shortcut (local server):** run `uv run --package ossdex-server ossdex-server claude-config --install`, then fully quit Claude (⌘Q) and open it again. No Node.js needed. Without `--install` it only prints the entry. The in-app **Guide** shows these steps too.
+- **Claude Desktop, by hand (local server):** the config file can only start local programs, so bridge with `mcp-remote` (needs Node.js). Merge this into `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows), then restart:
   ```json
   {
     "mcpServers": {
@@ -123,6 +125,7 @@ Cloud apps (claude.ai, ChatGPT) cannot reach `127.0.0.1`, so they need the hoste
 <details>
 <summary><b>Gemini</b></summary>
 
+- **Gemini app (hosted URL):** on gemini.google.com, Settings → **Connected Apps** → Custom apps → **Add a custom app**, paste `https://ossdex.<your-domain>/mcp`, then **Next**. In a chat, type `@` and pick ossdex. It needs a personal Google account in the US with Keep Activity on.
 - **Gemini CLI:**
   ```sh
   gemini mcp add --transport http ossdex http://127.0.0.1:8200/mcp
@@ -141,7 +144,7 @@ Cloud apps (claude.ai, ChatGPT) cannot reach `127.0.0.1`, so they need the hoste
 <summary><b>ChatGPT / Codex</b></summary>
 
 - **No setup:** open a repo card in the web app, pick a prompt template, click **Copy**, paste into ChatGPT.
-- **Connector (hosted URL):** with developer mode on, Settings → Connectors → Create. Name `ossdex`, URL `https://ossdex.<your-domain>/mcp`, no authentication.
+- **ChatGPT (hosted URL):** chatgpt.com/plugins → **+** → **Add custom MCP server**. Name `ossdex`, URL `https://ossdex.<your-domain>/mcp`, No authentication, then **Create as a plugin**. In a chat, type `@` and pick ossdex. If your plan has no such button, use Settings → Apps → Advanced settings → Developer mode → **Create app**.
 - **Codex CLI:**
   ```sh
   codex mcp add ossdex --url http://127.0.0.1:8200/mcp
@@ -197,7 +200,7 @@ ossdex shows where growth and money may be. Finding clients is up to you.
 
 ### A simple 3-step routine
 
-1. **Filter.** On the Cards page, use `SaaS-Safe` plus `Business` to drop restrictive licenses.
+1. **Filter.** On the Cards page, use `License → Permissive` plus `Advanced → Business signals` to drop restrictive licenses.
 2. **Check one project.** Click a card. Look at:
    - **Fork-to-star ratio ≥ 12%:** companies are cloning and self-hosting it.
    - **License:** MIT / Apache / BSD = free to use in closed-source SaaS. LGPL / MPL = fine as an unmodified dependency. AGPL = you must share source for network use, so keep it behind a separate service.

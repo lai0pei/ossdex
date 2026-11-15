@@ -7,18 +7,13 @@ import { fmtStars, OwnerAvatar } from "./RepoList";
 import type { StarPoint } from "./types";
 import { agoWithDate, langColor } from "./ago";
 import { analyzeSingleRepo } from "./ideaAnalysis";
-import {
-  SINGLE_REPO_CATEGORIES,
-  SINGLE_REPO_PROMPTS,
-} from "./promptLibrary";
+import { SINGLE_REPO_PROMPTS } from "./promptLibrary";
 import {
   IconActivity,
   IconAward,
   IconBookmark,
   IconBookOpen,
   IconCheck,
-  IconChevronLeft,
-  IconChevronRight,
   IconClock,
   IconCode,
   IconCopy,
@@ -27,8 +22,6 @@ import {
   IconFork,
   IconGitHub,
   IconGlobe,
-  IconMaximize,
-  IconMinimize,
   IconShieldCheck,
   IconSparkles,
   IconStar,
@@ -100,10 +93,6 @@ export default function RepoDrawer({
   name,
   onClose,
   onOpenRepo,
-  onPrevRepo,
-  onNextRepo,
-  hasPrev = false,
-  hasNext = false,
   onFilterTopic,
   onFilterList,
   onFilterMoney,
@@ -114,10 +103,6 @@ export default function RepoDrawer({
   name: string;
   onClose: () => void;
   onOpenRepo?: (repoName: string) => void;
-  onPrevRepo?: () => void;
-  onNextRepo?: () => void;
-  hasPrev?: boolean;
-  hasNext?: boolean;
   onFilterTopic?: (topic: string) => void;
   onFilterList?: (list: string) => void;
   onFilterMoney?: (hint: string) => void;
@@ -127,13 +112,10 @@ export default function RepoDrawer({
 }) {
   const { data: r, error, isLoading } = useQuery({ queryKey: ["repo", name], queryFn: () => fetchRepo(name) });
   const similar = useQuery({ queryKey: ["repo", name, "similar"], queryFn: () => fetchSimilar(name), staleTime: 60_000 });
-  const [maximized, setMaximized] = useState(true);
   const [chartMetric, setChartMetric] = useState<"stars" | "forks">("stars");
   const [copiedSlug, setCopiedSlug] = useState(false);
-  const [copiedBrief, setCopiedBrief] = useState(false);
   const [copiedTemplateId, setCopiedTemplateId] = useState<string | null>(null);
   const [selectedPromptId, setSelectedPromptId] = useState<string>("idea-articulator");
-  const [promptCategory, setPromptCategory] = useState<string>("All");
   const [showPromptPreview, setShowPromptPreview] = useState<boolean>(false);
 
   const selectedTemplate =
@@ -145,16 +127,8 @@ export default function RepoDrawer({
     const promptText = tpl.generate({ repo: r });
     navigator.clipboard.writeText(promptText).then(() => {
       setCopiedTemplateId(templateId);
-      setCopiedBrief(true);
-      setTimeout(() => {
-        setCopiedTemplateId(null);
-        setCopiedBrief(false);
-      }, 2000);
+      setTimeout(() => setCopiedTemplateId(null), 2000);
     });
-  };
-
-  const copyMcpBrief = () => {
-    copyPromptById(selectedPromptId);
   };
 
   useEffect(() => {
@@ -162,19 +136,7 @@ export default function RepoDrawer({
     document.body.style.overflow = "hidden";
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      const tag = (e.target as HTMLElement | null)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if ((e.key === "ArrowLeft" || e.key === "h") && onPrevRepo && hasPrev) {
-        e.preventDefault();
-        onPrevRepo();
-      } else if ((e.key === "ArrowRight" || e.key === "l") && onNextRepo && hasNext) {
-        e.preventDefault();
-        onNextRepo();
-      }
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
 
@@ -182,7 +144,7 @@ export default function RepoDrawer({
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prevOverflow;
     };
-  }, [hasPrev, hasNext, onClose, onNextRepo, onPrevRepo]);
+  }, [onClose]);
 
   const hasStarHistory = r && (r.history.filter((p) => p.stars != null).length >= 2 || r.gain_1d != null || r.gain_7d != null);
   const [owner, repoSlug] = name.includes("/") ? name.split("/", 2) : ["", name];
@@ -226,36 +188,6 @@ export default function RepoDrawer({
           </div>
 
           <div className="modal-actions">
-            {onPrevRepo && (
-              <button
-                className="icon-btn"
-                onClick={onPrevRepo}
-                disabled={!hasPrev}
-                title="Previous repository (h / ←)"
-                aria-label="Previous repository"
-              >
-                <IconChevronLeft size={15} />
-              </button>
-            )}
-            {onNextRepo && (
-              <button
-                className="icon-btn"
-                onClick={onNextRepo}
-                disabled={!hasNext}
-                title="Next repository (l / →)"
-                aria-label="Next repository"
-              >
-                <IconChevronRight size={15} />
-              </button>
-            )}
-            <button
-              className="icon-btn maximize-btn"
-              onClick={() => setMaximized((v) => !v)}
-              title={maximized ? "Compact popup" : "Maximize popup"}
-              aria-label={maximized ? "Compact popup" : "Maximize popup"}
-            >
-              {maximized ? <IconMinimize size={15} /> : <IconMaximize size={15} />}
-            </button>
             <button className="icon-btn" onClick={onClose} title="Close popup (Esc)" aria-label="Close popup">
               <IconX size={16} />
             </button>
@@ -274,14 +206,6 @@ export default function RepoDrawer({
                 <span>{isSaved ? "Saved" : "Save"}</span>
               </button>
             )}
-            <button
-              className="btn-link"
-              onClick={copyMcpBrief}
-              title="Copy structured product idea prompt for Claude or your MCP client"
-            >
-              {copiedBrief ? <IconCheck size={12} /> : <IconCopy size={12} />}
-              <span>{copiedBrief ? "Brief Copied!" : "Copy MCP Brief"}</span>
-            </button>
             <a className="btn-link" href={r.github_url} target="_blank" rel="noreferrer">
               <IconGitHub size={13} />
               <span>GitHub</span>
@@ -328,6 +252,7 @@ export default function RepoDrawer({
               const starsPerYear =
                 ageYears && r.stars ? Math.round(r.stars / Math.max(parseFloat(ageYears), 0.5)) : null;
               const kindAdvice = r.license_kind ? KIND_NOTES[r.license_kind] : KIND_NOTES.none;
+              const idea = analyzeSingleRepo(r);
 
               return (
                 <>
@@ -416,7 +341,7 @@ export default function RepoDrawer({
                     <p className="lic-advice-text">{kindAdvice}</p>
                   </div>
 
-                  {/* Product Idea Brief & Strategy */}
+                  {/* Product Idea Brief & Strategy: compact, details folded */}
                   <section className="product-brief-box">
                     <div className="product-brief-header">
                       <div className="product-brief-title-wrap">
@@ -424,44 +349,38 @@ export default function RepoDrawer({
                           <IconSparkles size={13} />
                           <span>Product Idea Brief</span>
                         </span>
-                        <span className={`product-verdict-pill level-${analyzeSingleRepo(r).licensePosture.level}`}>
-                          {analyzeSingleRepo(r).licensePosture.badge}
+                        <span className={`product-verdict-pill level-${idea.licensePosture.level}`}>
+                          {idea.licensePosture.badge}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        className="btn-subtle small-btn"
-                        onClick={copyMcpBrief}
-                        title="Copy structured brief for MCP client"
-                      >
-                        {copiedBrief ? <IconCheck size={12} /> : <IconCopy size={12} />}
-                        <span>{copiedBrief ? "Copied" : "Copy MCP Brief"}</span>
-                      </button>
                     </div>
 
-                    <p className="product-brief-summary">{analyzeSingleRepo(r).licensePosture.summary}</p>
+                    <p className="product-brief-summary">{idea.licensePosture.summary}</p>
 
-                    <div className="product-signals-grid">
-                      <div className="product-signal-item">
-                        <span className="signal-item-label">Deployment Signal</span>
-                        <span className="signal-item-val">{analyzeSingleRepo(r).deploymentSignal}</span>
-                      </div>
-                      <div className="product-signal-item">
-                        <span className="signal-item-label">Velocity</span>
-                        <span className="signal-item-val">{analyzeSingleRepo(r).velocitySignal}</span>
-                      </div>
-                      {analyzeSingleRepo(r).businessPrecedents.length > 0 && (
+                    <details className="brief-fold">
+                      <summary>Signals ({2 + (idea.businessPrecedents.length > 0 ? 1 : 0)})</summary>
+                      <div className="product-signals-grid">
                         <div className="product-signal-item">
-                          <span className="signal-item-label">Precedents</span>
-                          <span className="signal-item-val">{analyzeSingleRepo(r).businessPrecedents.join(", ")}</span>
+                          <span className="signal-item-label">Deployment Signal</span>
+                          <span className="signal-item-val">{idea.deploymentSignal}</span>
                         </div>
-                      )}
-                    </div>
+                        <div className="product-signal-item">
+                          <span className="signal-item-label">Velocity</span>
+                          <span className="signal-item-val">{idea.velocitySignal}</span>
+                        </div>
+                        {idea.businessPrecedents.length > 0 && (
+                          <div className="product-signal-item">
+                            <span className="signal-item-label">Precedents</span>
+                            <span className="signal-item-val">{idea.businessPrecedents.join(", ")}</span>
+                          </div>
+                        )}
+                      </div>
+                    </details>
 
-                    <div className="product-playbooks-list">
-                      <h4 className="playbooks-title">Candidate Product Angles</h4>
+                    <details className="brief-fold">
+                      <summary>Product angles ({idea.playbooks.length})</summary>
                       <div className="playbooks-grid">
-                        {analyzeSingleRepo(r).playbooks.map((p) => (
+                        {idea.playbooks.map((p) => (
                           <div key={p.title} className="playbook-card">
                             <div className="playbook-head">
                               <span className="playbook-name">{p.title}</span>
@@ -474,98 +393,74 @@ export default function RepoDrawer({
                           </div>
                         ))}
                       </div>
-                    </div>
+                    </details>
 
-                    {/* Categorized MCP Prompt Library */}
+                    {idea.risks.length > 0 && (
+                      <details className="brief-fold risk">
+                        <summary>Risks ({idea.risks.length})</summary>
+                        <ul className="risks-list">
+                          {idea.risks.map((risk, i) => (
+                            <li key={i}>{risk}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+
+                    {/* Prompts: one chip per template, one detail card for the selected one */}
                     <div className="prompt-library-section">
-                      <div className="prompt-library-header">
-                        <div className="prompt-library-title-wrap">
-                          <h4 className="prompt-library-title">
-                            <IconSparkles size={14} />
-                            <span>MCP Prompt Library</span>
-                          </h4>
-                          <span className="muted small">
-                            Pre-engineered prompts combining {r.full_name} data with ossdex MCP tools
-                          </span>
-                        </div>
-                        <div className="prompt-library-actions">
-                          <button
-                            type="button"
-                            className={`btn-subtle small-btn ${showPromptPreview ? "active" : ""}`}
-                            onClick={() => setShowPromptPreview((v) => !v)}
-                            title="Toggle Markdown prompt preview"
-                          >
-                            <IconFileText size={12} />
-                            <span>{showPromptPreview ? "Hide Preview" : "Preview Prompt"}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-subtle small-btn"
-                            onClick={() => copyPromptById(selectedPromptId)}
-                            title={`Copy ${selectedTemplate.title} for your MCP client`}
-                          >
-                            {copiedTemplateId === selectedPromptId ? <IconCheck size={12} /> : <IconCopy size={12} />}
-                            <span>{copiedTemplateId === selectedPromptId ? "Copied!" : "Copy Active"}</span>
-                          </button>
-                        </div>
-                      </div>
+                      <h4 className="prompt-library-title">
+                        <IconSparkles size={14} />
+                        <span>Prompts for your AI</span>
+                      </h4>
+                      <span className="muted small">
+                        Copy a ready-made prompt for {r.full_name} into Claude, ChatGPT or Gemini.
+                      </span>
 
-                      <div className="prompt-category-tabs">
-                        {SINGLE_REPO_CATEGORIES.map((cat) => (
+                      <div className="prompt-chip-row" role="group" aria-label="Prompt templates">
+                        {SINGLE_REPO_PROMPTS.map((tpl) => (
                           <button
-                            key={cat}
+                            key={tpl.id}
                             type="button"
-                            className={`prompt-cat-pill ${promptCategory === cat ? "active" : ""}`}
-                            onClick={() => setPromptCategory(cat)}
+                            className="prompt-chip"
+                            aria-pressed={selectedPromptId === tpl.id}
+                            title={tpl.title}
+                            onClick={() => setSelectedPromptId(tpl.id)}
                           >
-                            {cat}
+                            {tpl.badge}
                           </button>
                         ))}
                       </div>
 
-                      <div className="prompt-cards-grid">
-                        {(promptCategory === "All"
-                          ? SINGLE_REPO_PROMPTS
-                          : SINGLE_REPO_PROMPTS.filter((p) => p.category === promptCategory)
-                        ).map((tpl) => {
-                          const isSelected = selectedPromptId === tpl.id;
-                          const isCopied = copiedTemplateId === tpl.id;
-                          return (
-                            <div
-                              key={tpl.id}
-                              className={`prompt-card ${isSelected ? "selected" : ""}`}
-                              onClick={() => setSelectedPromptId(tpl.id)}
-                            >
-                              <div className="prompt-card-head">
-                                <span className="prompt-card-title">{tpl.title}</span>
-                                <span className="prompt-card-badge">{tpl.badge}</span>
-                              </div>
-                              <p className="prompt-card-summary">{tpl.summary}</p>
-                              <div className="prompt-card-foot">
-                                <div className="prompt-tool-tags">
-                                  {tpl.toolsUsed.map((t) => (
-                                    <span key={t} className="prompt-tool-tag font-mono">
-                                      {t}
-                                    </span>
-                                  ))}
-                                </div>
-                                <button
-                                  type="button"
-                                  className="btn-subtle small-btn prompt-card-copy"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedPromptId(tpl.id);
-                                    copyPromptById(tpl.id);
-                                  }}
-                                  title={`Copy ${tpl.title} prompt`}
-                                >
-                                  {isCopied ? <IconCheck size={11} /> : <IconCopy size={11} />}
-                                  <span>{isCopied ? "Copied" : "Copy"}</span>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="prompt-card selected">
+                        <div className="prompt-card-head">
+                          <span className="prompt-card-title">{selectedTemplate.title}</span>
+                        </div>
+                        <p className="prompt-card-summary">{selectedTemplate.summary}</p>
+                        <div className="prompt-tool-tags">
+                          {selectedTemplate.toolsUsed.map((t) => (
+                            <span key={t} className="prompt-tool-tag font-mono">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="prompt-card-actions">
+                          <button
+                            type="button"
+                            className="btn-subtle small-btn prompt-copy-primary"
+                            onClick={() => copyPromptById(selectedPromptId)}
+                          >
+                            {copiedTemplateId === selectedPromptId ? <IconCheck size={12} /> : <IconCopy size={12} />}
+                            <span>{copiedTemplateId === selectedPromptId ? "Copied" : "Copy prompt"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn-subtle small-btn ${showPromptPreview ? "active" : ""}`}
+                            onClick={() => setShowPromptPreview((v) => !v)}
+                          >
+                            <IconFileText size={12} />
+                            <span>{showPromptPreview ? "Hide preview" : "Preview"}</span>
+                          </button>
+                        </div>
                       </div>
 
                       {showPromptPreview && (
@@ -577,24 +472,14 @@ export default function RepoDrawer({
                                 Live Prompt Preview: <strong>{selectedTemplate.title}</strong>
                               </span>
                             </span>
-                            <div className="preview-actions">
-                              <button
-                                type="button"
-                                className="btn-subtle small-btn"
-                                onClick={() => copyPromptById(selectedPromptId)}
-                              >
-                                {copiedTemplateId === selectedPromptId ? <IconCheck size={11} /> : <IconCopy size={11} />}
-                                <span>{copiedTemplateId === selectedPromptId ? "Copied!" : "Copy Prompt"}</span>
-                              </button>
-                              <button
-                                type="button"
-                                className="icon-btn small-btn"
-                                onClick={() => setShowPromptPreview(false)}
-                                title="Close preview"
-                              >
-                                <IconX size={12} />
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              className="icon-btn small-btn"
+                              onClick={() => setShowPromptPreview(false)}
+                              title="Close preview"
+                            >
+                              <IconX size={12} />
+                            </button>
                           </div>
                           <pre className="prompt-preview-code">
                             {selectedTemplate.generate({ repo: r })}
@@ -602,17 +487,6 @@ export default function RepoDrawer({
                         </div>
                       )}
                     </div>
-
-                    {analyzeSingleRepo(r).risks.length > 0 && (
-                      <div className="product-risks-callout">
-                        <span className="risks-title">Risks & Considerations:</span>
-                        <ul className="risks-list">
-                          {analyzeSingleRepo(r).risks.map((risk, i) => (
-                            <li key={i}>{risk}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </section>
                 </>
               );
@@ -803,7 +677,7 @@ export default function RepoDrawer({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <article
-        className={`repo-modal ${maximized ? "maximized" : ""}`}
+        className="repo-modal maximized"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

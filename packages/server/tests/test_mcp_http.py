@@ -34,8 +34,10 @@ def test_mcp_lists_and_calls_tools_over_http(app):
                                      "clientInfo": {"name": "t", "version": "1"}})
         assert init.status_code == 200 and init.headers["content-type"].startswith("application/json")
         assert init.json()["result"]["serverInfo"]["name"] == "ossdex"
+        assert "search_repos" in init.json()["result"]["instructions"]
         tools = rpc(c, "tools/list").json()["result"]["tools"]
         assert len(tools) == 24 and "inspect_local_environment" not in {t["name"] for t in tools}
+        assert all(t["annotations"]["readOnlyHint"] for t in tools)  # no write confirmations in ChatGPT
         res = rpc(c, "tools/call", {"name": "search_repos", "arguments": {"query": "langchain"}})
         payload = json.loads(res.json()["result"]["content"][0]["text"])
         assert payload["repos"][0]["repo"] == "acme/langchain-agent"

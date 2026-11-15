@@ -23,7 +23,7 @@ export interface ListState {
   mentions_paper: boolean; // README links to an arXiv paper
   licensed_only: boolean; // only offered when unlicensed repos are collected
   min_gain: string;
-  gain_days: string; // "1" (daily) or "7" (weekly): the window min_gain is measured over
+  gain_days: string; // "1" (daily), "7" (weekly) or "30" (monthly): the window min_gain is measured over
   repo: string; // repo open in the drawer
 }
 
@@ -89,6 +89,8 @@ export function serialize(s: ListState, withUi: boolean): URLSearchParams {
   // the API wants real booleans
   if (!withUi) {
     for (const b of BOOLS) if (p.has(b)) p.set(b, p.get(b) === "1" ? "true" : "false");
+    // the API's own gain_days default (7) differs from ours (1), so always say which window min_gain means
+    if (s.min_gain) p.set("gain_days", s.gain_days);
   }
   return p;
 }

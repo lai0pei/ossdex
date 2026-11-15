@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 import anyio.to_thread
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import ToolAnnotations
 from ossdex_core.config import Settings, load_settings
 from ossdex_core.licenses import LicenseKind
 from pydantic import Field
@@ -79,11 +80,29 @@ def transport_security(host: str | None = None) -> TransportSecuritySettings:
                                      allowed_hosts=hosts, allowed_origins=origins)
 
 
+INSTRUCTIONS = (
+    "ossdex is a database of popular open-source GitHub projects, refreshed daily. It has stars and star "
+    "growth, licenses and what they allow commercially, maintainer activity, business signals (hosted cloud, "
+    "pricing, sponsors) and README text. Use these tools when the user asks about open-source projects or "
+    "GitHub repositories: finding or recommending projects, alternatives to a product, what is trending or "
+    "growing, comparing projects, whether a license allows selling or hosting, or whether a project is "
+    "maintained. The data here is newer than your training data. Start with search_repos for a topic or "
+    "idea, get_rising for what is trending, find_similar for alternatives to a known repo, and "
+    "compare_repos for 2 to 6 named repos. Call facets to find valid filter values. Name repos as owner/repo."
+)
+
+
+READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True,
+                            openWorldHint=False)
+
+
 def create_mcp(tb: Toolbox, **kwargs) -> FastMCP:
-    mcp = FastMCP("ossdex", **kwargs)
+    mcp = FastMCP("ossdex", instructions=INSTRUCTIONS, **kwargs)
 
     def reg(name: str):
-        return mcp.tool(name=name, description=tb.tools[name].description)
+        # Every tool only reads ossdex's database. Saying so lets ChatGPT and Claude skip the
+        # "this tool may change data" confirmation they show for unannotated tools.
+        return mcp.tool(name=name, description=tb.tools[name].description, annotations=READ_ONLY)
 
     async def call(name: str, **args) -> dict:
         # tb.call blocks on SQLite; FastMCP runs async tools on the event loop, so hand it to a
