@@ -147,6 +147,7 @@ export default function RepoList(props: {
   onChange: (p: Partial<ListState>, resetPage?: boolean) => void;
   savedRepos?: string[];
   onToggleSaved?: (fullName: string) => void;
+  cardDensity?: "comfortable" | "compact";
 }) {
   const {
     data,
@@ -154,6 +155,7 @@ export default function RepoList(props: {
     onChange,
     savedRepos = [],
     onToggleSaved,
+    cardDensity = "comfortable",
   } = props;
   const [focusIdx, setFocusIdx] = useState<number>(-1);
 
@@ -201,7 +203,7 @@ export default function RepoList(props: {
       {props.error && <div className="error-banner">Could not load repositories: {props.error.message}</div>}
 
       {(
-        <ul className="repos profile-grid">
+        <ul className={`repos profile-grid ${cardDensity === "compact" ? "compact-list" : ""}`}>
           {props.loading && !data && Array.from({ length: 8 }).map((_, idx) => (
             <li key={idx} className="repo-card skeleton-card" aria-hidden="true">
               <div className="skeleton-row">
@@ -225,7 +227,6 @@ export default function RepoList(props: {
             const ghUrl = r.url || `https://github.com/${r.full_name}`;
             const isSelected = s.repo.toLowerCase() === r.full_name.toLowerCase() || focusIdx === idx;
             const isSaved = savedRepos.includes(r.full_name);
-            const forkRatio = r.stars && r.forks ? ((r.forks / r.stars) * 100).toFixed(1) : null;
             const hasSignals = (r.money_signals && r.money_signals.length > 0) ||
                                (r.lists_count != null && r.lists_count > 0) ||
                                (r.papers_count != null && r.papers_count > 0);
@@ -239,6 +240,7 @@ export default function RepoList(props: {
                 <div className="profile-head">
                   <OwnerAvatar owner={owner} size={36} />
                   <div className="profile-identity">
+                    {owner && <span className="repo-owner">@{owner}</span>}
                     <button
                       className="repo-name"
                       onClick={(e) => {
@@ -248,8 +250,48 @@ export default function RepoList(props: {
                     >
                       <span className="repo-slug">{repoName}</span>
                     </button>
-                    <div className="profile-sub">
-                      {owner && <span className="repo-owner">@{owner}</span>}
+                  </div>
+
+                  <div className="card-head-metrics">
+                    {r.sparkline && r.sparkline.length >= 2 && (
+                      <div className="card-spark-wrap desktop-sparkline" title={`Recent stars velocity: ${r.sparkline[0]} → ${r.sparkline[r.sparkline.length - 1]}`}>
+                        <MiniSparkline points={r.sparkline} width={64} height={20} />
+                      </div>
+                    )}
+                    <div className="card-head-actions">
+                      {onToggleSaved && (
+                        <button
+                          type="button"
+                          className={`gh-ext-link bookmark-btn ${isSaved ? "saved" : ""}`}
+                          title={isSaved ? "Remove from saved" : "Save repository"}
+                          aria-label={isSaved ? `Unsave ${r.full_name}` : `Save ${r.full_name}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleSaved(r.full_name);
+                          }}
+                        >
+                          <IconBookmark size={15} filled={isSaved} />
+                        </button>
+                      )}
+                      <a
+                        className="gh-ext-link"
+                        href={ghUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open on GitHub"
+                        aria-label={`Open ${r.full_name} on GitHub`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <IconExternal size={15} />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="profile-body">
+                  {/* Dedicated language and license meta row for clean mobile & desktop scanning */}
+                  {(r.language || r.license) && (
+                    <div className="card-meta-row">
                       {r.language && (
                         <button
                           className="chip lang-chip"
@@ -277,63 +319,18 @@ export default function RepoList(props: {
                           }}
                         >
                           {r.license_kind === "permissive" ? <IconShieldCheck size={10} /> : <IconCheck size={10} />}
-                          {r.license}
+                          <span>{r.license}</span>
                         </button>
                       )}
                     </div>
-                  </div>
+                  )}
 
-                  <div className="card-head-metrics">
-                    {r.sparkline && r.sparkline.length >= 2 && (
-                      <div className="card-spark-wrap" title={`Recent stars velocity: ${r.sparkline[0]} → ${r.sparkline[r.sparkline.length - 1]}`}>
-                        <MiniSparkline points={r.sparkline} width={64} height={20} />
-                      </div>
-                    )}
-                    <div className="card-head-actions">
-                      {onToggleSaved && (
-                        <button
-                          type="button"
-                          className={`gh-ext-link bookmark-btn ${isSaved ? "saved" : ""}`}
-                          title={isSaved ? "Remove from saved" : "Save repository"}
-                          aria-label={isSaved ? `Unsave ${r.full_name}` : `Save ${r.full_name}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleSaved(r.full_name);
-                          }}
-                        >
-                          <IconBookmark size={14} filled={isSaved} />
-                        </button>
-                      )}
-                      <a
-                        className="gh-ext-link"
-                        href={ghUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        title="Open on GitHub"
-                        aria-label={`Open ${r.full_name} on GitHub`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <IconExternal size={14} />
-                      </a>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="profile-body">
                   {r.description && (
                     <p className="desc line-clamp-2">{highlight(r.description, s.q)}</p>
                   )}
 
                   {r.snippet && (
                     <p className="snippet line-clamp-2">{highlight(r.snippet, s.q)}</p>
-                  )}
-
-                  {r.why && r.why.length > 0 && (
-                    <div className="match-reasons">
-                      {r.why.map((w) => (
-                        <span key={w} className="match-why-badge">{w}</span>
-                      ))}
-                    </div>
                   )}
 
                   {/* At-a-Glance Commercial & Velocity Signals */}
@@ -395,10 +392,9 @@ export default function RepoList(props: {
                       {fmtStars(r.stars)}
                     </span>
                     {r.forks != null && r.forks > 0 && (
-                      <span className="meta-item" title={`${r.forks.toLocaleString()} forks${forkRatio ? ` (${forkRatio}% ratio)` : ""}`}>
+                      <span className="meta-item" title={`${r.forks.toLocaleString()} forks`}>
                         <IconFork size={12} />
                         <span>{fmtStars(r.forks)}</span>
-                        {forkRatio && <span className="fork-ratio-tag">{forkRatio}%</span>}
                       </span>
                     )}
                     {!r.license && (
@@ -409,6 +405,11 @@ export default function RepoList(props: {
                   </div>
 
                   <div className="profile-status">
+                    {r.sparkline && r.sparkline.length >= 2 && (
+                      <div className="card-spark-wrap mobile-sparkline" title={`Recent stars velocity: ${r.sparkline[0]} → ${r.sparkline[r.sparkline.length - 1]}`}>
+                        <MiniSparkline points={r.sparkline} width={56} height={18} />
+                      </div>
+                    )}
                     {gain ? (
                       <span
                         className="gain-badge"

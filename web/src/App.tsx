@@ -34,6 +34,10 @@ export default function App() {
       return [];
     }
   });
+  const [cardDensity, setCardDensity] = useState<"comfortable" | "compact">(() => {
+    const saved = localStorage.getItem("ossdex.cardDensity");
+    return saved === "compact" ? "compact" : "comfortable";
+  });
   const [showGuide, setShowGuide] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +45,22 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem("ossdex.theme", theme); } catch { /* ignore */ }
   }, [theme]);
+
+  const toggleCardDensity = useCallback(() => {
+    setCardDensity((prev) => {
+      const next = prev === "comfortable" ? "compact" : "comfortable";
+      try { localStorage.setItem("ossdex.cardDensity", next); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+
+  // Only auto-focus search on desktop devices with a fine pointer (avoid popping mobile virtual keyboard on load)
+  useEffect(() => {
+    const isDesktop = window.matchMedia("(pointer: fine) and (min-width: 768px)").matches;
+    if (isDesktop && !state.repo) {
+      searchRef.current?.focus();
+    }
+  }, []);
 
   const toggleSaved = useCallback((fullName: string) => {
     setSavedRepos((prev) => {
@@ -143,7 +163,6 @@ export default function App() {
               ref={searchRef}
               className="search"
               type="search"
-              autoFocus
               placeholder="Search repositories by meaning or keyword…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -214,6 +233,8 @@ export default function App() {
               onChange={update}
               unlicensedKept={st ? !st.require_license : false}
               savedRepos={savedRepos}
+              cardDensity={cardDensity}
+              onToggleCardDensity={toggleCardDensity}
             />
 
             <RepoList
@@ -225,6 +246,7 @@ export default function App() {
               onChange={update}
               savedRepos={savedRepos}
               onToggleSaved={toggleSaved}
+              cardDensity={cardDensity}
             />
           </main>
         </section>

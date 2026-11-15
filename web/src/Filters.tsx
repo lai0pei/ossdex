@@ -9,10 +9,13 @@ import {
   IconChevronDown,
   IconCode,
   IconFileText,
+  IconLayoutGrid,
+  IconLayoutList,
   IconReset,
   IconShieldCheck,
   IconSort,
   IconSparkles,
+  IconX,
 } from "./icons";
 
 type Patch = (p: Partial<ListState>) => void;
@@ -58,7 +61,25 @@ function PopoverFilter(props: {
         {(props.activeCount ?? 0) > 0 && <span className="pill-badge">{props.activeCount}</span>}
         <IconChevronDown size={12} className="chev" />
       </button>
-      {isOpen && <div className="filter-popover">{props.children}</div>}
+      {isOpen && (
+        <>
+          <div className="filter-popover-backdrop" onClick={() => props.setOpenId(null)} />
+          <div className="filter-popover">
+            <div className="popover-mobile-head">
+              <span className="popover-mobile-title">{props.label}</span>
+              <button
+                type="button"
+                className="popover-mobile-close"
+                onClick={() => props.setOpenId(null)}
+                aria-label="Close filter"
+              >
+                <IconX size={15} />
+              </button>
+            </div>
+            {props.children}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -82,7 +103,6 @@ function FacetMenu(props: {
     <div className="pop-menu">
       <input
         type="search"
-        autoFocus
         className="filter-search"
         placeholder={`Filter ${props.title.toLowerCase()}…`}
         value={text}
@@ -131,8 +151,17 @@ export default function Filters(props: {
   onChange: Patch;
   unlicensedKept?: boolean;
   savedRepos?: string[];
+  cardDensity?: "comfortable" | "compact";
+  onToggleCardDensity?: () => void;
 }) {
-  const { state: s, facets, onChange, savedRepos = [] } = props;
+  const {
+    state: s,
+    facets,
+    onChange,
+    savedRepos = [],
+    cardDensity = "comfortable",
+    onToggleCardDensity,
+  } = props;
   const [openId, setOpenId] = useState<string | null>(null);
   const barRef = useRef<HTMLElement>(null);
 
@@ -237,145 +266,162 @@ export default function Filters(props: {
   return (
     <section className="top-filters" ref={barRef} aria-label="Filters">
       <div className="filter-bar-row">
-        <PopoverFilter
-          id="lang"
-          openId={openId}
-          setOpenId={setOpenId}
-          icon={<IconCode size={13} />}
-          label="Language"
-          activeCount={s.languages.length}
-        >
-          <FacetMenu
-            title="Language"
-            items={facets?.languages ?? []}
-            selected={s.languages}
-            showColorDot
-            onChange={(languages) => onChange({ languages })}
-          />
-        </PopoverFilter>
+        {/* Horizontally scrollable filter rail on mobile */}
+        <div className="filter-pills-scroll">
+          <PopoverFilter
+            id="lang"
+            openId={openId}
+            setOpenId={setOpenId}
+            icon={<IconCode size={13} />}
+            label="Language"
+            activeCount={s.languages.length}
+          >
+            <FacetMenu
+              title="Language"
+              items={facets?.languages ?? []}
+              selected={s.languages}
+              showColorDot
+              onChange={(languages) => onChange({ languages })}
+            />
+          </PopoverFilter>
 
-        <PopoverFilter
-          id="license"
-          openId={openId}
-          setOpenId={setOpenId}
-          icon={<IconShieldCheck size={13} />}
-          label="License"
-          activeCount={licenseCount}
-        >
-          <div className="pop-form" style={{ minWidth: 280 }}>
-            <div className="pop-label">License Type</div>
-            <div className="license-kind-list">
-              {LICENSE_KINDS.map((k) => {
-                const checked = s.license_kinds.includes(k.id);
-                return (
-                  <button
-                    key={k.id}
-                    type="button"
-                    className={`license-kind-btn ${checked ? "active" : ""}`}
-                    onClick={() => toggleLicenseKind(k.id)}
-                  >
-                    <div className="kind-header">
-                      <span className="kind-title">{k.label}</span>
-                      {checked && <span className="kind-check">✓</span>}
-                    </div>
-                    <span className="kind-hint">{k.hint}</span>
-                  </button>
-                );
-              })}
+          <PopoverFilter
+            id="license"
+            openId={openId}
+            setOpenId={setOpenId}
+            icon={<IconShieldCheck size={13} />}
+            label="License"
+            activeCount={licenseCount}
+          >
+            <div className="pop-form" style={{ minWidth: 280 }}>
+              <div className="pop-label">License Type</div>
+              <div className="license-kind-list">
+                {LICENSE_KINDS.map((k) => {
+                  const checked = s.license_kinds.includes(k.id);
+                  return (
+                    <button
+                      key={k.id}
+                      type="button"
+                      className={`license-kind-btn ${checked ? "active" : ""}`}
+                      onClick={() => toggleLicenseKind(k.id)}
+                    >
+                      <div className="kind-header">
+                        <span className="kind-title">{k.label}</span>
+                        {checked && <span className="kind-check">✓</span>}
+                      </div>
+                      <span className="kind-hint">{k.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {facets?.licenses && facets.licenses.length > 0 && (
+                <>
+                  <div className="pop-label" style={{ marginTop: 6 }}>Specific Licenses (SPDX)</div>
+                  <FacetMenu
+                    title="License"
+                    items={facets.licenses}
+                    selected={s.licenses}
+                    onChange={(licenses) => onChange({ licenses })}
+                  />
+                </>
+              )}
             </div>
-            {facets?.licenses && facets.licenses.length > 0 && (
-              <>
-                <div className="pop-label" style={{ marginTop: 6 }}>Specific Licenses (SPDX)</div>
-                <FacetMenu
-                  title="License"
-                  items={facets.licenses}
-                  selected={s.licenses}
-                  onChange={(licenses) => onChange({ licenses })}
-                />
-              </>
-            )}
+          </PopoverFilter>
+
+          {facets?.lists && facets.lists.length > 0 && (
+            <PopoverFilter
+              id="lists"
+              openId={openId}
+              setOpenId={setOpenId}
+              icon={<IconAward size={13} />}
+              label="Curated Lists"
+              activeCount={s.in_lists.length}
+            >
+              <FacetMenu
+                title="Awesome List"
+                items={facets.lists}
+                selected={s.in_lists}
+                onChange={(in_lists) => onChange({ in_lists })}
+              />
+            </PopoverFilter>
+          )}
+
+          {facets?.money && facets.money.length > 0 && (
+            <PopoverFilter
+              id="money"
+              openId={openId}
+              setOpenId={setOpenId}
+              icon={<IconSparkles size={13} />}
+              label="Business"
+              activeCount={s.money.length}
+            >
+              <FacetMenu
+                title="Companies already pay for…"
+                items={facets.money.map((m) => ({ ...m, value: m.value }))}
+                selected={s.money}
+                onChange={(money) => onChange({ money })}
+              />
+            </PopoverFilter>
+          )}
+
+          {savedRepos.length > 0 && (
+            <button
+              type="button"
+              className={`filter-pill ${isShowingSaved ? "active" : ""}`}
+              title="Show your bookmarked repositories"
+              onClick={() => onChange({ names: isShowingSaved ? [] : savedRepos })}
+            >
+              <IconBookmark size={13} filled={isShowingSaved} />
+              <span>Saved</span>
+              <span className="pill-badge">{savedRepos.length}</span>
+            </button>
+          )}
+
+          {/* 1-Click Discovery Lenses */}
+          <div className="inline-lenses">
+            <button
+              type="button"
+              className={`preset-pill ${s.license_kinds.includes("permissive") && s.pushed_after === daysAgo(30) ? "active" : ""}`}
+              onClick={() => {
+                const isActive = s.license_kinds.includes("permissive") && s.pushed_after === daysAgo(30);
+                onChange({
+                  license_kinds: isActive ? [] : ["permissive"],
+                  pushed_after: isActive ? "" : daysAgo(30),
+                });
+              }}
+              title="Permissive license (MIT/Apache/BSD) and updated within 30 days"
+            >
+              <IconShieldCheck size={12} />
+              <span>SaaS-Safe</span>
+            </button>
+            <button
+              type="button"
+              className={`preset-pill ${s.mentions_paper ? "active" : ""}`}
+              onClick={() => onChange({ mentions_paper: !s.mentions_paper })}
+              title="Repositories whose README cites an arXiv research paper"
+            >
+              <IconFileText size={12} />
+              <span>Papers</span>
+            </button>
           </div>
-        </PopoverFilter>
-
-        {facets?.lists && facets.lists.length > 0 && (
-          <PopoverFilter
-            id="lists"
-            openId={openId}
-            setOpenId={setOpenId}
-            icon={<IconAward size={13} />}
-            label="Curated Lists"
-            activeCount={s.in_lists.length}
-          >
-            <FacetMenu
-              title="Awesome List"
-              items={facets.lists}
-              selected={s.in_lists}
-              onChange={(in_lists) => onChange({ in_lists })}
-            />
-          </PopoverFilter>
-        )}
-
-        {facets?.money && facets.money.length > 0 && (
-          <PopoverFilter
-            id="money"
-            openId={openId}
-            setOpenId={setOpenId}
-            icon={<IconSparkles size={13} />}
-            label="Business"
-            activeCount={s.money.length}
-          >
-            <FacetMenu
-              title="Companies already pay for…"
-              items={facets.money.map((m) => ({ ...m, value: m.value }))}
-              selected={s.money}
-              onChange={(money) => onChange({ money })}
-            />
-          </PopoverFilter>
-        )}
-
-        {savedRepos.length > 0 && (
-          <button
-            type="button"
-            className={`filter-pill ${isShowingSaved ? "active" : ""}`}
-            title="Show your bookmarked repositories"
-            onClick={() => onChange({ names: isShowingSaved ? [] : savedRepos })}
-          >
-            <IconBookmark size={13} filled={isShowingSaved} />
-            <span>Saved</span>
-            <span className="pill-badge">{savedRepos.length}</span>
-          </button>
-        )}
-
-        {/* 1-Click Discovery Lenses */}
-        <div className="inline-lenses">
-          <button
-            type="button"
-            className={`preset-pill ${s.license_kinds.includes("permissive") && s.pushed_after === daysAgo(30) ? "active" : ""}`}
-            onClick={() => {
-              const isActive = s.license_kinds.includes("permissive") && s.pushed_after === daysAgo(30);
-              onChange({
-                license_kinds: isActive ? [] : ["permissive"],
-                pushed_after: isActive ? "" : daysAgo(30),
-              });
-            }}
-            title="Permissive license (MIT/Apache/BSD) and updated within 30 days"
-          >
-            <IconShieldCheck size={12} />
-            <span>SaaS-Safe</span>
-          </button>
-          <button
-            type="button"
-            className={`preset-pill ${s.mentions_paper ? "active" : ""}`}
-            onClick={() => onChange({ mentions_paper: !s.mentions_paper })}
-            title="Repositories whose README cites an arXiv research paper"
-          >
-            <IconFileText size={12} />
-            <span>Papers</span>
-          </button>
         </div>
 
-        {/* Sort Dropdown embedded cleanly in second row */}
-        {(
+        {/* View & Sort Controls Group */}
+        <div className="filter-controls-group">
+          {onToggleCardDensity && (
+            <button
+              type="button"
+              className="card-density-toggle-btn"
+              onClick={onToggleCardDensity}
+              title={cardDensity === "comfortable" ? "Switch to compact cards view" : "Switch to comfortable cards view"}
+              aria-label={cardDensity === "comfortable" ? "Switch to compact cards view" : "Switch to comfortable cards view"}
+            >
+              {cardDensity === "comfortable" ? <IconLayoutList size={13} /> : <IconLayoutGrid size={13} />}
+              <span className="density-label">{cardDensity === "comfortable" ? "Comfortable" : "Compact"}</span>
+            </button>
+          )}
+
+          {/* Sort Dropdown */}
           <div className="filter-sort-wrap">
             <span className="sort-icon-cue"><IconSort size={12} /></span>
             <select
@@ -398,18 +444,18 @@ export default function Filters(props: {
               ))}
             </select>
           </div>
-        )}
 
-        {active && (
-          <button
-            type="button"
-            className="reset-btn"
-            onClick={() => onChange({ ...DEFAULTS, q: s.q, sort: s.sort, repo: s.repo })}
-          >
-            <IconReset size={12} />
-            <span>Reset</span>
-          </button>
-        )}
+          {active && (
+            <button
+              type="button"
+              className="reset-btn"
+              onClick={() => onChange({ ...DEFAULTS, q: s.q, sort: s.sort, repo: s.repo })}
+            >
+              <IconReset size={12} />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {active && (

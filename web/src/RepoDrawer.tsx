@@ -200,99 +200,102 @@ export default function RepoDrawer({
   const content = (
     <>
       <header className="modal-header">
-        <div className="modal-title-wrap">
-          <OwnerAvatar owner={owner} size={30} />
-          <div className="modal-title-text">
-            <h2>
-              {owner && <span className="repo-owner">{owner}/</span>}
-              <span>{repoSlug}</span>
-            </h2>
+        <div className="modal-header-main">
+          <div className="modal-title-wrap">
+            <OwnerAvatar owner={owner} size={32} />
+            <div className="modal-title-text">
+              <h2>
+                {owner && <span className="repo-owner">{owner}/</span>}
+                <span>{repoSlug}</span>
+              </h2>
+              <button
+                type="button"
+                className="copy-slug-btn"
+                title={copiedSlug ? "Copied!" : `Copy ${name}`}
+                aria-label={`Copy ${name}`}
+                onClick={() => {
+                  navigator.clipboard.writeText(name).then(() => {
+                    setCopiedSlug(true);
+                    setTimeout(() => setCopiedSlug(false), 1800);
+                  });
+                }}
+              >
+                {copiedSlug ? <IconCheck size={12} /> : <IconCopy size={12} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="modal-actions">
+            {onPrevRepo && (
+              <button
+                className="icon-btn"
+                onClick={onPrevRepo}
+                disabled={!hasPrev}
+                title="Previous repository (h / ←)"
+                aria-label="Previous repository"
+              >
+                <IconChevronLeft size={15} />
+              </button>
+            )}
+            {onNextRepo && (
+              <button
+                className="icon-btn"
+                onClick={onNextRepo}
+                disabled={!hasNext}
+                title="Next repository (l / →)"
+                aria-label="Next repository"
+              >
+                <IconChevronRight size={15} />
+              </button>
+            )}
             <button
-              type="button"
-              className="copy-slug-btn"
-              title={copiedSlug ? "Copied!" : `Copy ${name}`}
-              aria-label={`Copy ${name}`}
-              onClick={() => {
-                navigator.clipboard.writeText(name).then(() => {
-                  setCopiedSlug(true);
-                  setTimeout(() => setCopiedSlug(false), 1800);
-                });
-              }}
+              className="icon-btn maximize-btn"
+              onClick={() => setMaximized((v) => !v)}
+              title={maximized ? "Compact popup" : "Maximize popup"}
+              aria-label={maximized ? "Compact popup" : "Maximize popup"}
             >
-              {copiedSlug ? <IconCheck size={12} /> : <IconCopy size={12} />}
+              {maximized ? <IconMinimize size={15} /> : <IconMaximize size={15} />}
+            </button>
+            <button className="icon-btn" onClick={onClose} title="Close popup (Esc)" aria-label="Close popup">
+              <IconX size={16} />
             </button>
           </div>
-          {r && (
-            <div className="modal-links">
-              {onToggleSaved && (
-                <button
-                  className={`btn-link ${isSaved ? "btn-ask-ai" : ""}`}
-                  onClick={() => onToggleSaved(r.full_name)}
-                  title={isSaved ? "Remove from saved" : "Save repository"}
-                >
-                  <IconBookmark size={13} filled={isSaved} />
-                  <span>{isSaved ? "Saved" : "Save"}</span>
-                </button>
-              )}
-              <button
-                className="btn-link"
-                onClick={copyMcpBrief}
-                title="Copy structured product idea prompt for Claude or your MCP client"
-              >
-                {copiedBrief ? <IconCheck size={12} /> : <IconCopy size={12} />}
-                <span>{copiedBrief ? "Brief Copied!" : "Copy MCP Brief"}</span>
-              </button>
-              <a className="btn-link" href={r.github_url} target="_blank" rel="noreferrer">
-                <IconGitHub size={13} />
-                <span>GitHub</span>
-                <IconExternal size={11} />
-              </a>
-              {r.homepage && (
-                <a className="btn-link" href={r.homepage} target="_blank" rel="noreferrer">
-                  <IconGlobe size={13} />
-                  <span>Website</span>
-                  <IconExternal size={11} />
-                </a>
-              )}
-            </div>
-          )}
         </div>
 
-        <div className="modal-actions">
-          {onPrevRepo && (
+        {r && (
+          <div className="modal-links">
+            {onToggleSaved && (
+              <button
+                className={`btn-link ${isSaved ? "btn-ask-ai" : ""}`}
+                onClick={() => onToggleSaved(r.full_name)}
+                title={isSaved ? "Remove from saved" : "Save repository"}
+              >
+                <IconBookmark size={13} filled={isSaved} />
+                <span>{isSaved ? "Saved" : "Save"}</span>
+              </button>
+            )}
             <button
-              className="icon-btn"
-              onClick={onPrevRepo}
-              disabled={!hasPrev}
-              title="Previous repository (h / ←)"
-              aria-label="Previous repository"
+              className="btn-link"
+              onClick={copyMcpBrief}
+              title="Copy structured product idea prompt for Claude or your MCP client"
             >
-              <IconChevronLeft size={15} />
+              {copiedBrief ? <IconCheck size={12} /> : <IconCopy size={12} />}
+              <span>{copiedBrief ? "Brief Copied!" : "Copy MCP Brief"}</span>
             </button>
-          )}
-          {onNextRepo && (
-            <button
-              className="icon-btn"
-              onClick={onNextRepo}
-              disabled={!hasNext}
-              title="Next repository (l / →)"
-              aria-label="Next repository"
-            >
-              <IconChevronRight size={15} />
-            </button>
-          )}
-          <button
-            className="icon-btn"
-            onClick={() => setMaximized((v) => !v)}
-            title={maximized ? "Compact popup" : "Maximize popup"}
-            aria-label={maximized ? "Compact popup" : "Maximize popup"}
-          >
-            {maximized ? <IconMinimize size={15} /> : <IconMaximize size={15} />}
-          </button>
-          <button className="icon-btn" onClick={onClose} title="Close popup (Esc)" aria-label="Close popup">
-            <IconX size={16} />
-          </button>
-        </div>
+            <a className="btn-link" href={r.github_url} target="_blank" rel="noreferrer">
+              <IconGitHub size={13} />
+              <span>GitHub</span>
+              <IconExternal size={11} />
+            </a>
+            {r.homepage && (
+              <a className="btn-link" href={r.homepage} target="_blank" rel="noreferrer">
+                <IconGlobe size={13} />
+                <span>Website</span>
+                <IconExternal size={11} />
+              </a>
+            )}
+          </div>
+        )}
       </header>
 
       {isLoading && (
