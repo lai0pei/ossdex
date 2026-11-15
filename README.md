@@ -2,100 +2,72 @@
 
 <p align="center"><img src="docs/flow.svg" alt="GitHub flows into the collector, then into one database file, then to the web UI and to Claude through MCP" width="760"></p>
 
-**ossdex finds popular open-source projects on GitHub and lets you search them.**
+**An MCP server that lets your AI assistant research open-source projects.**
 
-It saves each project's link, description, topics, language, license, stars, forks and README into one
-SQLite file. It also saves the star count every day, so you can see which projects are **growing fast**.
-You can then browse the data in three ways: a website, a JSON API, or an AI assistant (MCP).
+Ask it to find a project, compare two, see what is rising, check whether a license lets you sell or
+host it, or tell you if it is still maintained. It answers from a database of popular GitHub projects,
+refreshed daily. It is **read-only** and calls no LLM and no GitHub at query time.
 
-All data comes from the GitHub API. Nothing else.
+ossdex has **24 tools** and **13 prompts**, all behind one URL: `/mcp`.
 
-<p align="center"><img src="docs/typing.svg" alt="Terminal: run the collector, then the server" width="760"></p>
+## Try it in 30 seconds
 
-## The two programs
-
-| program | what it does |
-|---|---|
-| `ossdex-collector` | Talks to GitHub. Finds repos, reads READMEs, saves daily star counts. **Writes** the database. |
-| `ossdex-server` | Shows the data: website, API (`/api`) and MCP (`/mcp`). **Only reads** the database. Never needs a token. |
-
-They share one file: `data/ossdex.db`. (A third package, `ossdex-core`, holds code both use.)
-
-## Quick start
+Connect your assistant to the ossdex URL:
 
 ```sh
-uv sync --all-packages
-cp .env.example .env            # put your GITHUB_TOKEN in it
-(cd web && npm install && npm run build)
+# Claude Code (server running locally, see "Run your own")
+claude mcp add --transport http ossdex http://127.0.0.1:8200/mcp
 
-uv run --package ossdex-collector ossdex-collector discover --dry-run   # how many repos? (nothing is saved)
-uv run --package ossdex-collector ossdex-collector update               # fetch everything (first run is long)
-uv run --package ossdex-server ossdex-server serve                      # open http://127.0.0.1:8200
+# Gemini CLI
+gemini mcp add --transport http ossdex http://127.0.0.1:8200/mcp
+
+# Codex CLI
+codex mcp add ossdex --url http://127.0.0.1:8200/mcp
 ```
 
-**GitHub token:** a classic personal access token with **no scopes** is enough, because the data is
-public. Put it in `.env` as `GITHUB_TOKEN`. If it is empty, ossdex tries `gh auth token`. The token is
-only sent to `api.github.com` and is never printed. Only the collector uses it.
+For claude.ai, ChatGPT and Gemini (cloud apps cannot reach `127.0.0.1`), add the hosted URL
+`https://ossdex.<your-domain>/mcp` as a custom connector. Steps for every client are in
+[Connect your assistant](#connect-your-assistant).
 
-The server can run while the collector writes, and it clears its cache by itself when new data arrives.
+Then ask:
 
-## Which repos are collected?
+- "Use ossdex to find a permissive, maintained project I can build a SaaS on for invoicing."
+- "What is rising this week in Rust?"
+- "Can I host `owner/repo` as a paid service? Check the license."
+- "Compare `a/x`, `b/y` and `c/z`. Which one has the healthiest maintainers?"
 
-A repo is kept when it:
+## What you can ask
 
-- has at least **1,000 stars** (you can change this),
-- is **not** a fork, mirror, template or archived repo,
-- has a **license** GitHub recognises,
-- does not have an excluded topic (`awesome-list`, `awesome`, `books`, `tutorial`, `interview`).
-
-If a repo stops matching later, it is **hidden**, not deleted.
-
-**Star threshold:** set `OSSDEX_MIN_STARS` or use `--min-stars N`.
-
-- Lower it → more repos get added.
-- Raise it → repos below it are hidden (lower it again and they come back). `ossdex-collector prune` deletes them for good.
-- Try `discover --dry-run --min-stars 500` first to see how many repos you would get.
-
-**No license?** Skipped by default, because code without a license is not really open source. Set
-`OSSDEX_REQUIRE_LICENSE=false` to keep them (the UI marks them "no license").
-
-## Star growth needs time
-
-GitHub only tells us the star count **today**. So ossdex saves a snapshot **every day it runs**, and
-works out "stars gained in 7 / 30 days" from those snapshots.
-
-- The 7-day column fills in after a week. The 30-day column after a month.
-- Missed a day? No problem, it uses the closest older snapshot.
-- Run `ossdex-collector schedule install` so it happens daily.
-
-## Commands
-
-| command | what it does |
+| you want to… | tools |
 |---|---|
-| `discover [--min-stars N] [--dry-run] [--budget P]` | search GitHub for matching repos and save them (can be resumed) |
-| `refresh` | re-check repos that were not returned: deleted, now a fork, archived, renamed |
-| `readmes [--limit N] [--days D]` | download READMEs, biggest repos first; refetch ones older than D days (30) |
-| `index [--full]` | rebuild the keyword-search index |
-| `enrich [--offline]` | tag repos with the Awesome lists they appear in and the arXiv papers they link to |
-| `update` | does discover → refresh → readmes → enrich → index. Safe to stop and run again |
-| `prune` | delete hidden repos (asks first) |
-| `status` | show what is in the database |
-| `schedule install` / `remove` | run `update` daily (launchd on macOS; on Linux it prints a crontab line) |
+| **Find** projects | `search_repos`, `list_repos`, `find_similar`, `facets` |
+| **Look closely** at one or a few | `get_repo`, `get_readme_section`, `compare_repos` |
+| **See what is growing** | `get_rising`, `classify_growth`, `find_niches`, `opportunity_report`, `count_repos` |
+| **Check the license and platform** | `license_audit`, `platform_compat` |
+| **Judge health and adoption** | `get_maintainer_health`, `analyze_forks`, `get_package_adoption`, `get_runtime_dependencies`, `classify_artifact` |
+| **See the business around it** | `get_commercial_landscape`, `get_company_events`, `check_name_collision` |
+| **Turn it into a product idea** | `saas_base`, `evaluate_brief` |
 
-All of these start with `ossdex-collector`. Server commands:
+The 13 prompts (for example `saas_base`, `fork_and_rebrand_audit`, `competitive_moat_analysis`,
+`breakout_opportunity_scan`, `learn_repo_80_20`) are ready-made workflows. The full lists are in
+[Tools and prompts](#tools-and-prompts).
 
-| command | what it does |
+### How it differs from other tools
+
+| | what it is for |
 |---|---|
-| `ossdex-server serve [--workers N]` | website + API + MCP on port 8200 |
-| `ossdex-server mcp [--transport stdio\|sse\|streamable-http]` | MCP only (stdio by default, for local clients) |
-| `ossdex-server claude-config [--install]` | connect Claude Desktop to this computer's ossdex (adds it to Claude's config file, keeps your other servers, saves a `.bak`) |
+| **ossdex** | Choosing which open-source project to use, fork or build on: license, growth, maintainers, business signals. Read-only snapshot of public repos. |
+| GitHub's official MCP server | Working *inside* repos: code, issues, PRs, Actions. Live, read/write, includes private repos. |
+| OSSInsight, Best of JS, star-history | Statistics and charts for people to look at. No license or decision layer, and (mostly) no MCP. |
 
-`--budget P` stops a run after P GraphQL points (GitHub allows 5,000 per hour), so one run never uses
-your whole quota.
+They work well together: find and vet a project with ossdex, then read its code or file an issue with
+GitHub's MCP.
 
-## Connect an AI assistant (MCP)
+**Limits to know:** the data is as fresh as the last collector run (daily when scheduled). It only has
+public repos with 1,000+ stars (you can change this), a recognised license, and no forks, mirrors or archives.
 
-ossdex has an MCP server with **24 tools** and **13 prompts**. It calls no LLM and no GitHub.
+## Connect your assistant
+
 Every client connects to one URL:
 
 - **Local:** `http://127.0.0.1:8200/mcp` (while `ossdex-server serve` is running)
@@ -153,6 +125,10 @@ Cloud apps (claude.ai, ChatGPT) cannot reach `127.0.0.1`, so they need the hoste
 
 To test any setup: run `npx @modelcontextprotocol/inspector`, choose **Streamable HTTP**, and connect to the URL.
 
+For a local MCP-only process (stdio, no website), run `ossdex-server mcp`. See [Commands](#commands).
+
+## Tools and prompts
+
 <details>
 <summary><b>The 24 tools</b></summary>
 
@@ -169,7 +145,7 @@ To test any setup: run `npx @modelcontextprotocol/inspector`, choose **Streamabl
 - `facets`: counts by language, license and topic
 - More: `classify_artifact`, `get_runtime_dependencies`, `classify_growth`, `get_package_adoption`, `analyze_forks`, `get_maintainer_health`, `get_commercial_landscape`, `get_company_events`, `check_name_collision`, `license_audit`, `platform_compat`, `saas_base`, `evaluate_brief`
 
-Resources: `ossdex://repo/{owner}/{name}` (README excerpt) and `ossdex://status` (database status).
+Every tool only reads the database. Resources: `ossdex://repo/{owner}/{name}` (README excerpt) and `ossdex://status` (database status).
 </details>
 
 <details>
@@ -190,23 +166,112 @@ Resources: `ossdex://repo/{owner}/{name}` (README excerpt) and `ossdex://status`
 13. `learn_stack_80_20`: 80/20 guide to combining repos
 </details>
 
-## Finding paid work
+## Run your own
 
-ossdex shows where growth and money may be. Finding clients is up to you.
+The MCP server reads a database that a second program fills. There are two programs:
 
-- **Growing niches:** `find_niches` ranks topics by stars gained. Fast growth with few repos means room to specialise.
-- **Business hints:** `update` reads each README for words like "managed cloud", "enterprise edition", "paid support", and records funding links. Projects with these hints probably have paying customers. Filter with `money`.
-- **`opportunity_report`** (MCP) combines all of the above.
+| program | what it does |
+|---|---|
+| `ossdex-collector` | Talks to GitHub. Finds repos, reads READMEs, saves daily star counts. **Writes** the database. |
+| `ossdex-server` | Serves MCP (`/mcp`), a website and a JSON API (`/api`). **Only reads** the database. Never needs a token. |
 
-### A simple 3-step routine
+They share one file: `data/ossdex.db`. (A third package, `ossdex-core`, holds code both use.)
+All data comes from the GitHub API. Nothing else.
 
-1. **Filter.** On the Cards page, use `License → Permissive` plus `Advanced → Business signals` to drop restrictive licenses.
-2. **Check one project.** Click a card. Look at:
-   - **Fork-to-star ratio ≥ 12%:** companies are cloning and self-hosting it.
-   - **License:** MIT / Apache / BSD = free to use in closed-source SaaS. LGPL / MPL = fine as an unmodified dependency. AGPL = you must share source for network use, so keep it behind a separate service.
-3. **Get more data.** Keep `update` scheduled daily so star gains stay fresh.
+### Quick start
 
-## Where to run it
+<p align="center"><img src="docs/typing.svg" alt="Terminal: run the collector, then the server" width="760"></p>
+
+```sh
+uv sync --all-packages
+cp .env.example .env            # put your GITHUB_TOKEN in it
+(cd web && npm install && npm run build)
+
+uv run --package ossdex-collector ossdex-collector discover --dry-run   # how many repos? (nothing is saved)
+uv run --package ossdex-collector ossdex-collector update               # fetch everything (first run is long)
+uv run --package ossdex-server ossdex-server serve                      # MCP at http://127.0.0.1:8200/mcp
+```
+
+The same server also shows a website at `http://127.0.0.1:8200` and a JSON API at `/api`, if you want to
+browse the data by hand.
+
+**GitHub token:** a classic personal access token with **no scopes** is enough, because the data is
+public. Put it in `.env` as `GITHUB_TOKEN`. If it is empty, ossdex tries `gh auth token`. The token is
+only sent to `api.github.com` and is never printed. Only the collector uses it.
+
+The server can run while the collector writes, and it clears its cache by itself when new data arrives.
+
+### Which repos are collected?
+
+A repo is kept when it:
+
+- has at least **1,000 stars** (you can change this),
+- is **not** a fork, mirror, template or archived repo,
+- has a **license** GitHub recognises,
+- does not have an excluded topic (`awesome-list`, `awesome`, `books`, `tutorial`, `interview`).
+
+If a repo stops matching later, it is **hidden**, not deleted.
+
+**Star threshold:** set `OSSDEX_MIN_STARS` or use `--min-stars N`.
+
+- Lower it → more repos get added.
+- Raise it → repos below it are hidden (lower it again and they come back). `ossdex-collector prune` deletes them for good.
+- Try `discover --dry-run --min-stars 500` first to see how many repos you would get.
+
+**No license?** Skipped by default, because code without a license is not really open source. Set
+`OSSDEX_REQUIRE_LICENSE=false` to keep them (the UI marks them "no license").
+
+### Star growth needs time
+
+GitHub only tells us the star count **today**. So ossdex saves a snapshot **every day it runs**, and
+works out "stars gained in 7 / 30 days" from those snapshots. Tools like `get_rising` and `find_niches`
+depend on this.
+
+- The 7-day column fills in after a week. The 30-day column after a month.
+- Missed a day? No problem, it uses the closest older snapshot.
+- Run `ossdex-collector schedule install` so it happens daily.
+
+### Commands
+
+| command | what it does |
+|---|---|
+| `discover [--min-stars N] [--dry-run] [--budget P]` | search GitHub for matching repos and save them (can be resumed) |
+| `refresh` | re-check repos that were not returned: deleted, now a fork, archived, renamed |
+| `readmes [--limit N] [--days D]` | download READMEs, biggest repos first; refetch ones older than D days (30) |
+| `index [--full]` | rebuild the keyword-search index |
+| `enrich [--offline]` | tag repos with the Awesome lists they appear in and the arXiv papers they link to |
+| `update` | does discover → refresh → readmes → enrich → index. Safe to stop and run again |
+| `prune` | delete hidden repos (asks first) |
+| `status` | show what is in the database |
+| `schedule install` / `remove` | run `update` daily (launchd on macOS; on Linux it prints a crontab line) |
+
+All of these start with `ossdex-collector`. Server commands:
+
+| command | what it does |
+|---|---|
+| `ossdex-server serve [--workers N]` | MCP + website + API on port 8200 |
+| `ossdex-server mcp [--transport stdio\|sse\|streamable-http]` | MCP only (stdio by default, for local clients) |
+| `ossdex-server claude-config [--install]` | connect Claude Desktop to this computer's ossdex (adds it to Claude's config file, keeps your other servers, saves a `.bak`) |
+
+`--budget P` stops a run after P GraphQL points (GitHub allows 5,000 per hour), so one run never uses
+your whole quota.
+
+## Hosting it publicly
+
+Cloud assistants need a public URL. `deploy/` has everything: a step-by-step `README.md`, a `Caddyfile`,
+a systemd unit, a cron file, an env template and a script that limits the firewall to Cloudflare.
+
+Then add `https://ossdex.<your-domain>/mcp` as a custom connector in Claude (no login needed). It works in the Claude mobile app too.
+
+The public server:
+
+- answers from the database only, with no GitHub calls and no token (data is as fresh as the last collector run)
+- never looks at the machine it runs on; the caller passes OS and habits
+- shows only a ~1,500 character README excerpt plus a GitHub link
+- has no accounts. Limits per client IP: a rate limit (429 + `Retry-After`), a cap on requests in flight (503), a cap on query-string size (414), and 5 seconds per query
+- runs one request per worker at a time, so set `OSSDEX_WORKERS` to your CPU cores. Repeated questions come from a cache. Test your machine with `scripts/loadtest.py`.
+
+### Where to run it
 
 - **One machine:** run both on your laptop. Simplest.
 - **One VPS:** collector on cron, server under systemd, same `data/ossdex.db`. Good for a public MCP.
@@ -219,20 +284,21 @@ ossdex shows where growth and money may be. Finding clients is up to you.
   ```
   Never copy the live `ossdex.db` directly. Recent writes sit in `ossdex.db-wal`, and a plain copy can be corrupt.
 
-## Hosting it publicly
+## Finding paid work
 
-`deploy/` has everything: a step-by-step `README.md`, a `Caddyfile`, a systemd unit, a cron file, an env
-template and a script that limits the firewall to Cloudflare.
+ossdex shows where growth and money may be. Finding clients is up to you.
 
-Then add `https://ossdex.<your-domain>/mcp` as a custom connector in Claude (no login needed). It works in the Claude mobile app too.
+- **`find_niches`** ranks topics by stars gained. Fast growth with few repos means room to specialise.
+- **Business hints:** `update` reads each README for words like "managed cloud", "enterprise edition", "paid support", and records funding links. Projects with these hints probably have paying customers. Filter with `money` in `search_repos` / `list_repos`.
+- **`opportunity_report`** combines all of the above.
 
-The public server:
+### A simple 3-step routine
 
-- answers from the database only, with no GitHub calls and no token (data is as fresh as the last collector run)
-- never looks at the machine it runs on; the caller passes OS and habits
-- shows only a ~1,500 character README excerpt plus a GitHub link
-- has no accounts. Limits per client IP: a rate limit (429 + `Retry-After`), a cap on requests in flight (503), a cap on query-string size (414), and 5 seconds per query
-- runs one request per worker at a time, so set `OSSDEX_WORKERS` to your CPU cores. Repeated questions come from a cache. Test your machine with `scripts/loadtest.py`.
+1. **Filter.** Ask for `license_kinds: permissive` plus `money` hints to drop restrictive licenses. (In the website: Cards page → `License → Permissive` plus `Advanced → Business signals`.)
+2. **Check one project.** Use `get_repo` and `license_audit` (or click a card). Look at:
+   - **Fork-to-star ratio ≥ 12%:** companies are cloning and self-hosting it.
+   - **License:** MIT / Apache / BSD = free to use in closed-source SaaS. LGPL / MPL = fine as an unmodified dependency. AGPL = you must share source for network use, so keep it behind a separate service.
+3. **Get more data.** Keep `update` scheduled daily so star gains stay fresh.
 
 ## Limits
 
@@ -251,11 +317,11 @@ GitHub API ─► ossdex-collector ─► data/ossdex.db (SQLite, WAL) ─► se
                                       │ read-only
                                       ▼
                          ossdex-server (one process)
-                           ├─ /api  FastAPI ─► web/ (React, served from web/dist)
-                           └─ /mcp  FastMCP (streamable HTTP)
+                           ├─ /mcp  FastMCP (streamable HTTP)
+                           └─ /api  FastAPI ─► web/ (React, served from web/dist)
 ```
 
-- Server code: `repo_query.py` (filters, sorts, detail, growth), `search.py` (keyword search), `tools.py` (MCP tools), `cache.py`, `limits.py` (rate limits), `db.py` (read-only connections, query timeout).
+- Server code: `repo_query.py` (filters, sorts, detail, growth), `search.py` (keyword search), `tools.py` and `mcp.py` (MCP tools and prompts), `cache.py`, `limits.py` (rate limits), `db.py` (read-only connections, query timeout).
 - `repos.enrich_status` is `ok` (visible), `gone`, `filtered` (no longer qualifies) or `below` (under the threshold). The last three are hidden everywhere.
 - Discovery progress is saved in the database, so a stopped run picks up where it left off.
 
